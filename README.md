@@ -1,73 +1,182 @@
-# React + TypeScript + Vite
+# 🏆 Tournament Brackets
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A vibrant, interactive parlour game to compare members of a group in a tournament-style voting bracket. Enter any topic, and watch as AI generates 16 unique candidates that battle it out in head-to-head matchups until a champion emerges!
 
-Currently, two official plugins are available:
+## ✨ Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **AI-Powered Generation**: Automatically generates 16 relevant candidates for any topic using Google Gemini or OpenAI
+- **Tournament-Style Voting**: Classic single-elimination bracket with 16 candidates (Round of 16 → Quarterfinals → Semifinals → Finals)
+- **Rich Candidate Profiles**: Each matchup features AI-generated scorecards with:
+  - Battle cries and catchphrases
+  - Detailed bios
+  - Fun attributes and characteristics
+- **Stunning Retro Aesthetic**: "Sunset Arcade" theme with vibrant electric cyan and bright yellow accents
+- **Smooth Animations**: Powered by Framer Motion for fluid transitions between game phases
+- **Interactive Bracket Visualization**: See the entire tournament structure and track progress in real-time
 
-## React Compiler
+## 🎮 How to Play
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. **Enter a Topic**: Type any category (e.g., "80s Action Movies", "Pizza Toppings", "Programming Languages")
+2. **View the Bracket**: See all 16 AI-generated candidates seeded in a tournament bracket
+3. **Vote in Matchups**: Choose your favorite in each head-to-head battle
+4. **Crown a Champion**: Progress through all rounds until one winner remains!
 
-## Expanding the ESLint configuration
+## 🛠️ Technology Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Frontend Framework**: React 19 with TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS 4
+- **Animations**: Framer Motion
+- **State Management**: Zustand
+- **AI Integration**: 
+  - Google Gemini AI (`@google/generative-ai`)
+  - OpenAI API (optional alternative)
+- **Icons**: Lucide React
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 📦 Installation
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Prerequisites
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Node.js (v18 or higher recommended)
+- npm or yarn package manager
+
+### Setup Steps
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd brackets
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure AI Provider (Optional)**
+   
+   The app works with mock data by default, but for the full AI experience:
+   
+   - Get an API key from [Google AI Studio](https://makersuite.google.com/app/apikey) (Gemini) or [OpenAI](https://platform.openai.com/api-keys)
+   - When you first run the app, click the settings icon (⚙️) in the top-right corner
+   - Enter your API key and select your preferred provider (Gemini or OpenAI)
+   - Your key is stored locally in your browser
+
+## 🚀 Running the Application
+
+### Development Mode
+
+Start the development server with hot module replacement:
+
+```bash
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The app will be available at `http://localhost:5173` (or another port if 5173 is in use).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Production Build
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Build the optimized production bundle:
+
+```bash
+npm run build
 ```
+
+This will:
+1. Run TypeScript compilation (`tsc -b`)
+2. Create an optimized build in the `dist/` directory
+
+### Preview Production Build
+
+Preview the production build locally:
+
+```bash
+npm run preview
+```
+
+### Linting
+
+Check code quality with ESLint:
+
+```bash
+npm run lint
+```
+
+## 📁 Project Structure
+
+```
+brackets/
+├── src/
+│   ├── components/          # React components
+│   │   ├── BracketView.tsx  # Tournament bracket visualization
+│   │   ├── Layout.tsx       # Main layout wrapper
+│   │   ├── MatchupView.tsx  # Head-to-head voting interface
+│   │   ├── SettingsModal.tsx # API key configuration
+│   │   ├── TopicInput.tsx   # Topic entry screen
+│   │   └── WinnerView.tsx   # Champion celebration screen
+│   ├── services/            # Business logic
+│   │   ├── generator.ts     # Candidate generation
+│   │   ├── image.ts         # Image generation utilities
+│   │   └── llm.ts          # AI provider integration
+│   ├── store/              # State management
+│   │   └── gameStore.ts    # Zustand game state
+│   ├── types.ts            # TypeScript type definitions
+│   ├── App.tsx             # Main application component
+│   ├── main.tsx            # Application entry point
+│   └── index.css           # Global styles
+├── public/                 # Static assets
+├── index.html             # HTML entry point
+├── package.json           # Dependencies and scripts
+├── tsconfig.json          # TypeScript configuration
+├── tailwind.config.js     # Tailwind CSS configuration
+└── vite.config.ts         # Vite build configuration
+```
+
+## 🎨 Design Philosophy
+
+The app features a bold **"Sunset Arcade"** aesthetic inspired by retro gaming:
+
+- **Color Palette**: Electric cyan (`#00FFFF`), bright yellow (`#FFFF00`), and vibrant gradients
+- **Typography**: Bold, italic, uppercase text with dramatic shadows and glows
+- **Animations**: Smooth transitions, hover effects, and micro-interactions
+- **Visual Effects**: Glassmorphism, neon glows, and gradient overlays
+
+## 🔧 Configuration
+
+### AI Provider Settings
+
+Settings are stored in browser localStorage:
+- `llm_provider`: `"gemini"` or `"openai"`
+- `llm_api_key`: Your API key
+
+### Customization
+
+- **Theme Colors**: Edit `tailwind.config.js` and component styles
+- **Mock Data**: Modify `MOCK_REPTILES` in `src/services/generator.ts`
+- **Animation Timing**: Adjust Framer Motion variants in components
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to:
+- Report bugs
+- Suggest new features
+- Submit pull requests
+- Improve documentation
+
+## 📝 License
+
+This project is open source and available under the MIT License.
+
+## 🎯 Future Enhancements
+
+- [ ] Save tournament history
+- [ ] Share results on social media
+- [ ] Custom bracket sizes (8, 32, 64 candidates)
+- [ ] Multiplayer voting mode
+- [ ] Export bracket as image
+- [ ] Sound effects and background music
+- [ ] Dark/light theme toggle
+
+---
+
+**Built with ❤️ using React, TypeScript, and AI**
