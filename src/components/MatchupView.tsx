@@ -128,9 +128,12 @@ const CandidatePanel: React.FC<{
             </div>
 
             {/* Name Header - Fixed height for alignment */}
-            <div className="w-full text-left px-1 h-20 flex items-center">
-                <h3 className="text-3xl md:text-4xl font-black text-white leading-tight drop-shadow-[2px_2px_0_rgba(239,68,68,1)] uppercase tracking-wide line-clamp-2 italic transform -skew-x-6 py-2">
-                    <span className="pr-4">{candidate.name}&nbsp;</span>
+            <div className="w-full flex justify-center items-center h-28 mb-2">
+                <h3
+                    className="font-black text-white text-center leading-none drop-shadow-[4px_4px_0_rgba(220,38,38,1)] uppercase tracking-tighter italic transform -skew-x-12 py-2"
+                    style={{ fontSize: 'clamp(2.5rem, 8vw, 3rem)' }}
+                >
+                    {candidate.name}
                 </h3>
             </div>
             {/* Scorecard Section - The "Card" */}
