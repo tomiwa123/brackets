@@ -62,6 +62,20 @@ A vibrant, interactive parlour game to compare members of a group in a tournamen
    - Enter your API key and select your preferred provider (Gemini or OpenAI)
    - Your key is stored locally in your browser
 
+4. **Configure Google Image Search (Optional)**
+   
+   To use real images for candidates instead of AI-generated content:
+   
+   1. **Get an API Key**: Create a project in the [Google Cloud Console](https://console.cloud.google.com/) and enable the **Custom Search API**. Create an API key under "Credentials".
+   2. **Create a Search Engine**: Go to [Programmable Search Engine](https://programmablesearchengine.google.com/) and create a new search engine.
+      - Under "What to search", select "Search the entire web".
+      - Enable **"Image search"**.
+      - Copy the **Search engine ID** (cx).
+   3. **Add to App**: In the app settings (⚙️), enter both the **Google Custom Search API Key** and the **Search Engine ID (cx)**.
+
+   > [!NOTE]
+   > If Google Image Search is not configured or an error occurs, the app automatically falls back to AI-generated images using your selected provider.
+
 ## 🚀 Running the Application
 
 ### Development Mode
@@ -147,7 +161,9 @@ The app features a bold **"Sunset Arcade"** aesthetic inspired by retro gaming:
 
 Settings are stored in browser localStorage:
 - `llm_provider`: `"gemini"` or `"openai"`
-- `llm_api_key`: Your API key
+- `llm_api_key`: Your AI provider API key
+- `google_search_key`: Your Google Custom Search API key
+- `google_search_cx`: Your Google Search Engine ID
 
 ### Customization
 
