@@ -11,6 +11,29 @@ export const generateWithLLM = async (
     provider: 'gemini' | 'openai',
     apiKey: string
 ): Promise<Candidate[]> => {
+    // MOCK DATA INJECTION FOR TESTING
+    if (topic === 'dev_test' || topic === 'dev test') {
+        await new Promise(resolve => setTimeout(resolve, 800)); // Slight delay for realism
+        return [
+            { id: "1", name: "Viper", bio: "Agile and deadly, the Viper strikes before you know it.", seed: 1, imageUrl: "https://images.unsplash.com/photo-1533055640609-24b498dfd74c?w=500&auto=format&fit=crop&q=60" },
+            { id: "2", name: "Gecko", bio: "Small but sticky, the Gecko can climb any obstacle.", seed: 16, imageUrl: "https://images.unsplash.com/photo-1595186981180-2ba5763528e1?w=500&auto=format&fit=crop&q=60" },
+            { id: "3", name: "Komodo Dragon", bio: "The king of lizards, with a bite that spells doom.", seed: 2, imageUrl: "https://images.unsplash.com/photo-1520626354676-e137f6a7354f?w=500&auto=format&fit=crop&q=60" },
+            { id: "4", name: "Chameleon", bio: "Master of disguise, blending into any environment.", seed: 15, imageUrl: "https://images.unsplash.com/photo-1582260274151-54b2dcd68c6e?w=500&auto=format&fit=crop&q=60" },
+            { id: "5", name: "Iguana", bio: "Ancient and stoic, a dragon in miniature form.", seed: 3 },
+            { id: "6", name: "Monitor Lizard", bio: "Intelligent and relentless hunter.", seed: 14 },
+            { id: "7", name: "Gila Monster", bio: "Venomous and beautifully patterned desert dweller.", seed: 4 },
+            { id: "8", name: "Bearded Dragon", bio: "Friendly but fierce when threatened.", seed: 13 },
+            { id: "9", name: "Anole", bio: "The backyard warrior, displaying bright colors.", seed: 5 },
+            { id: "10", name: "Skink", bio: "Glossy and quick, slipping through cracks.", seed: 12 },
+            { id: "11", name: "Tegu", bio: "Smart enough to be a pet, strong enough to dominate.", seed: 6 },
+            { id: "12", name: "Basilisk", bio: "The Jesus Lizard, running on water with speed.", seed: 11 },
+            { id: "13", name: "Horned Toad", bio: "Spiky defense and blood-squirting eyes.", seed: 7 },
+            { id: "14", name: "Frilled Neck", bio: "Intimidating display of flaps and fright.", seed: 10 },
+            { id: "15", name: "Blue Tongue", bio: "Deceptive looks with a powerful jaw.", seed: 8 },
+            { id: "16", name: "Thorny Devil", bio: "Covered in spikes, impossible to swallow.", seed: 9 }
+        ];
+    }
+
     const prompt = `
     Generate a list of exactly 16 distinct items related to the topic: "${topic}".
     For each item, provide:
@@ -68,6 +91,21 @@ export const generateScorecard = async (
     provider: 'gemini' | 'openai',
     apiKey: string
 ): Promise<Candidate['scorecard']> => {
+    // MOCK SCORECARD INJECTION
+    if (topic === 'dev_test' || topic === 'dev test') {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Faster load
+        return {
+            battleCry: "Victory is written in the scales!",
+            bio: `The ${candidateName} is a formidable opponent in the ${topic} arena. With swift movements and a history of survival in harsh environments, it brings a level of tenacity that few can match. Opponents beware of its hidden strengths and calculated strikes. This is a contender that refuses to back down regardless of the odds stacked against it.`,
+            attributes: [
+                { label: "Strength", value: "Adaptability", sentiment: "positive" },
+                { label: "Weakness", value: "Cold Temps", sentiment: "negative" },
+                { label: "Speed", value: "Blistering", sentiment: "neutral" },
+                { label: "Defense", value: "Scaly Armor", sentiment: "neutral" }
+            ]
+        };
+    }
+
     const prompt = `
     Create a fun, debate-worthy scorecard for "${candidateName}" in the context of a tournament about "${topic}".
     
@@ -134,6 +172,24 @@ export const generateAllScorecards = async (
     provider: 'gemini' | 'openai',
     apiKey: string
 ): Promise<Record<string, Candidate['scorecard']>> => {
+    // MOCK BULK GENERATION
+    if (topic === 'dev_test' || topic === 'dev test') {
+        const results: Record<string, Candidate['scorecard']> = {};
+        for (const c of candidates) {
+            results[c.id] = {
+                battleCry: "Victory is written in the scales!",
+                bio: `The ${c.name} is a formidable opponent in the ${topic} arena. With swift movements and a history of survival in harsh environments, it brings a level of tenacity that few can match. Opponents beware of its hidden strengths and calculated strikes. This is a contender that refuses to back down regardless of the odds stacked against it.`,
+                attributes: [
+                    { label: "Strength", value: "Adaptability", sentiment: "positive" },
+                    { label: "Weakness", value: "Cold Temps", sentiment: "negative" },
+                    { label: "Speed", value: "Blistering", sentiment: "neutral" },
+                    { label: "Defense", value: "Scaly Armor", sentiment: "neutral" }
+                ]
+            };
+        }
+        return results;
+    }
+
     const prompt = `
     Generate fun, debate-worthy scorecards for these 16 items in a tournament about "${topic}":
     ${candidates.map(c => `- ${c.name} (ID: ${c.id})`).join('\n')}

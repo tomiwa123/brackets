@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
-import type { Candidate, Scorecard } from '../types';
-import { Swords, Star, Loader2 } from 'lucide-react';
+import type { Candidate } from '../types';
+import { Swords, Loader2 } from 'lucide-react';
 
 export const MatchupView: React.FC = () => {
     const { matches, currentRound, currentMatchIndex, vote } = useGameStore();
@@ -11,84 +11,71 @@ export const MatchupView: React.FC = () => {
         m => m.round === currentRound && m.matchIndex === currentMatchIndex
     );
 
-    // useEffect(() => {
-    //     if (currentMatch) {
-    //         enrichMatchup();
-    //     }
-    // }, [currentMatch?.id]);
-
     if (!currentMatch) return null;
 
     return (
         <div className="w-full h-full flex flex-col px-4 pb-8">
-            {/* Header Area */}
-            <div className="text-center mb-6 relative z-10">
+            {/* Header Area - Simplified & Cleaner */}
+            <div className="text-center mb-8 relative z-10 pt-4">
                 <button
                     onClick={useGameStore.getState().showBracket}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 text-yellow-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-black uppercase tracking-widest hover:drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"
+                    className="absolute left-0 top-6 text-white/50 hover:text-yellow-400 transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
                 >
-                    <Swords className="w-4 h-4 rotate-90" /> Bracket
+                    <Swords className="w-4 h-4 rotate-90" /> View Bracket
                 </button>
 
-                <div className="flex items-center justify-center gap-6 mb-4">
-                    <div className="flex flex-col items-center">
-                        <span className="text-[#FFFF00] font-black uppercase tracking-[0.2em] text-xs drop-shadow-[0_0_5px_rgba(255,255,0,0.8)]">Round</span>
-                        <span className="text-2xl font-black text-white italic">
+                <div className="flex items-center justify-center gap-4 opacity-80">
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-yellow-500 font-bold text-xs uppercase tracking-widest">Round</span>
+                        <span className="text-xl font-black text-white italic">
                             {currentRound === 1 ? 'Ro16' : currentRound === 2 ? 'QF' : currentRound === 3 ? 'SF' : 'Final'}
                         </span>
                     </div>
-                    <div className="w-px h-8 bg-white/20" />
-                    <div className="flex flex-col items-center">
-                        <span className="text-[#00FFFF] font-black uppercase tracking-[0.2em] text-xs drop-shadow-[0_0_5px_rgba(0,255,255,0.8)]">Match</span>
-                        <span className="text-2xl font-black text-white italic">
+                    <span className="text-white/20">|</span>
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-cyan-400 font-bold text-xs uppercase tracking-widest">Match</span>
+                        <span className="text-xl font-black text-white italic">
                             {currentMatchIndex + 1}
                         </span>
                     </div>
                 </div>
-                <h2 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter italic transform -skew-x-6 drop-shadow-[4px_4px_0_rgba(185,28,28,1)] pr-4">
-                    {currentRound === 4 ? (
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-orange-500 to-red-600">
-                            The Final Battle
-                        </span>
-                    ) : (
-                        "Who Wins?"
-                    )}
-                </h2>
             </div>
 
             {/* Main Arena */}
-            <div className="flex-1 grid grid-cols-2 gap-8 md:gap-16 max-w-[1400px] mx-auto w-full relative h-full items-start pt-8">
+            <div className="flex-1 grid grid-cols-2 gap-8 md:gap-12 max-w-[1200px] mx-auto w-full relative h-full items-start">
 
-                {/* VS Badge (Absolute Center) */}
-                <div className="absolute left-1/2 top-48 -translate-x-1/2 z-20 flex flex-col items-center justify-center pointer-events-none">
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-900 rounded-full flex items-center justify-center border-4 border-white/10 shadow-[0_0_50px_rgba(236,72,153,0.5)] relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-purple-500/20 animate-pulse" />
-                        <Swords className="w-6 h-6 md:w-8 md:h-8 text-white relative z-10" />
+                {/* VS Badge (Absolute Center) - Refined */}
+                <div className="absolute left-1/2 top-[200px] -translate-x-1/2 z-20 flex flex-col items-center justify-center pointer-events-none">
+                    <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border-4 border-slate-800 shadow-2xl relative z-10">
+                        <span className="font-black text-white italic text-2xl pr-1">VS</span>
                     </div>
                 </div>
 
                 {/* Left Candidate */}
-                <CandidatePanel
+                <CandidateCard
                     candidate={currentMatch.player1}
                     onVote={() => vote(currentMatch.player1.id)}
                     side="left"
+                    isWinner={false} // Matchup view doesn't show winner state usually
                 />
 
                 {/* Right Candidate */}
-                <CandidatePanel
+                <CandidateCard
                     candidate={currentMatch.player2}
                     onVote={() => vote(currentMatch.player2.id)}
                     side="right"
+                    isWinner={false}
                 />
             </div>
         </div>
     );
 };
 
-const CandidatePanel: React.FC<{
+const CandidateCard: React.FC<{
     candidate: Candidate;
     onVote: () => void;
     side: 'left' | 'right';
+    isWinner?: boolean;
 }> = ({ candidate, onVote, side }) => {
     const isLeft = side === 'left';
 
@@ -96,106 +83,112 @@ const CandidatePanel: React.FC<{
         <motion.div
             initial={{ x: isLeft ? -50 : 50, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="h-full flex flex-col gap-4 relative group items-start text-left"
+            className="h-full flex flex-col relative group items-center"
         >
-            {/* Image Section - Separated from card */}
-            <div
-                key={candidate.id}
-                className="w-full relative rounded-2xl overflow-hidden bg-black shadow-[0_0_30px_rgba(0,0,0,0.5)] border-2 border-orange-500/30 shrink-0 group-hover:border-yellow-400 transition-colors duration-300"
-                style={{ height: '400px', minHeight: '400px', maxHeight: '400px' }}
-            >
-                {candidate.imageUrl ? (
-                    <img
-                        src={candidate.imageUrl}
-                        alt={candidate.name}
-                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-500"
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
-                        <span className="text-6xl font-black text-white/10 select-none">
-                            {candidate.name.charAt(0)}
+            {/* The Unified Collector Card */}
+            <div className="w-full bg-black/40 backdrop-blur-md rounded-3xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-500 flex flex-col shadow-2xl h-full">
+
+                {/* Image Section with Marquee Overlay */}
+                <div className="relative h-[350px] shrink-0 w-full bg-slate-900 group-hover:brightness-110 transition-all duration-500">
+                    {candidate.imageUrl ? (
+                        <img
+                            src={candidate.imageUrl}
+                            alt={candidate.name}
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-black">
+                            <span className="text-8xl font-black text-white/5 select-none">?</span>
+                        </div>
+                    )}
+
+                    {/* Seed Badge - Minimalist */}
+                    <div className="absolute top-4 right-4">
+                        <span className="bg-black/80 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-white/90 flex items-center gap-1 border border-white/10">
+                            #{candidate.seed}
                         </span>
                     </div>
-                )}
 
-                {/* Seed Badge */}
-                <div className="absolute top-3 right-3">
-                    <span className="bg-black/60 backdrop-blur border border-yellow-400/50 px-2 py-1 rounded-lg text-xs font-black text-yellow-400 flex items-center gap-1 shadow-lg italic">
-                        <Star className="w-3 h-3 fill-current" />
-                        #{candidate.seed}
-                    </span>
-                </div>
-            </div>
-
-            {/* Name Header - Fixed height for alignment */}
-            <div className="w-full flex justify-center items-center h-28 mb-2">
-                <h3
-                    className="font-black text-white text-center leading-none drop-shadow-[4px_4px_0_rgba(220,38,38,1)] uppercase tracking-tighter italic transform -skew-x-12 py-2"
-                    style={{ fontSize: 'clamp(2.5rem, 8vw, 3rem)' }}
-                >
-                    {candidate.name}
-                </h3>
-            </div>
-            {/* Scorecard Section - The "Card" */}
-            <div
-                className="flex-1 w-full flex flex-col bg-black/80 backdrop-blur-md rounded-2xl border-2 border-white/10 hover:border-orange-400 hover:bg-gray-900/80 transition-all duration-300 overflow-hidden relative group-hover:shadow-[0_0_40px_rgba(249,115,22,0.3)] text-left"
-            >
-                <div className="flex-1 p-4 w-full overflow-y-auto custom-scrollbar">
-                    {candidate.isLoading || !candidate.scorecard ? (
-                        <div className="h-full flex flex-col items-center justify-center text-orange-400 gap-3 min-h-[150px]">
-                            <Loader2 className="w-8 h-8 animate-spin" />
-                            <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Scouting...</p>
-                        </div>
-                    ) : (
-                        <ScorecardDisplay scorecard={candidate.scorecard} align={side} />
-                    )}
+                    {/* Gradient Overlay for Image Depth */}
+                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
                 </div>
 
-                {/* Vote Button Area */}
-                <div className="p-3 w-full bg-black/40 border-t border-white/5 mt-auto">
+                {/* Content Section */}
+                <div className="flex-1 flex flex-col items-center bg-black/60 p-6 md:p-8 w-full">
+                    {/* Name - Huge & Prominent but now in-flow */}
+                    <div className="w-full mb-6">
+                        <h3
+                            className="font-black text-white text-center leading-tight uppercase italic tracking-tight drop-shadow-lg"
+                            style={{
+                                fontSize: 'clamp(2rem, 4vw, 3.5rem)',
+                                textShadow: '2px 2px 0 rgba(0,0,0,0.5)'
+                            }}
+                        >
+                            {candidate.name}
+                        </h3>
+                    </div>
+
+                    {/* Scorecard Data */}
+                    <div className="w-full flex-1 mb-8">
+                        {candidate.isLoading || !candidate.scorecard ? (
+                            <div className="h-full flex flex-col items-center justify-center text-white/30 gap-3 min-h-[150px]">
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                                <p className="text-xs font-bold uppercase tracking-widest">Scouting Report...</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center text-center w-full">
+                                {/* Battle Cry - Subtle Accent */}
+                                <p className="text-cyan-400 font-bold italic tracking-wide mb-6 text-lg">
+                                    "{candidate.scorecard.battleCry}"
+                                </p>
+
+                                {/* Bio - Constrained Width for Readability (Steve Jobs' 4th suggestion) */}
+                                <div className="max-w-[50ch] mx-auto mb-10">
+                                    <p className="text-slate-300 text-base leading-relaxed font-medium">
+                                        {candidate.scorecard.bio}
+                                    </p>
+                                </div>
+
+                                {/* Attributes - Clean List */}
+                                <div className="w-full max-w-[400px] space-y-3 bg-white/5 rounded-xl p-6 border border-white/5">
+                                    {candidate.scorecard.attributes.map((attr, idx) => (
+                                        <div key={idx} className="flex justify-between items-center border-b border-white/5 last:border-0 pb-2 last:pb-0">
+                                            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                                                {attr.label}
+                                            </span>
+                                            <span className="font-bold text-slate-200">
+                                                {Array.isArray(attr.value) ? attr.value.join(', ') : attr.value}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Vote Button - "Lickable" & Not Eerily Wide */}
                     <button
                         onClick={onVote}
-                        className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-yellow-400 hover:to-orange-500 rounded-xl text-center font-black text-white transition-all uppercase tracking-[0.2em] border-b-4 border-red-900 hover:border-orange-800 active:border-b-0 active:translate-y-1 shadow-lg flex items-center justify-center gap-2 text-sm cursor-pointer"
+                        className="
+                            mt-auto mb-4
+                            group relative overflow-hidden rounded-full
+                            bg-gradient-to-b from-orange-500 to-red-600
+                            hover:from-orange-400 hover:to-red-500
+                            text-white font-black uppercase tracking-[0.2em]
+                            px-12 py-4
+                            shadow-[0_4px_0_rgb(153,27,27),0_15px_20px_-5px_rgba(220,38,38,0.4),inset_0_1px_0_rgba(255,255,255,0.4)]
+                            active:shadow-[0_0_0_rgb(153,27,27),inset_0_2px_5px_rgba(0,0,0,0.2)]
+                            active:translate-y-[4px]
+                            transition-all duration-100 ease-out
+                            min-w-[240px]
+                            flex items-center justify-center gap-3
+                        "
                     >
-                        VOTE
+                        <span className="drop-shadow-sm">Vote</span>
                     </button>
+
                 </div>
             </div>
         </motion.div>
-    );
-};
-
-const ScorecardDisplay: React.FC<{ scorecard: Scorecard; align: 'left' | 'right' }> = ({ scorecard }) => {
-    return (
-        <div className="space-y-4 w-full">
-            {/* Battle Cry - Cyan Catchphrase */}
-            <div className="relative">
-                <p className="text-lg md:text-xl font-black italic leading-tight text-[#00FFFF] drop-shadow-[0_0_8px_rgba(0,255,255,0.6)]">
-                    "{scorecard.battleCry}"
-                </p>
-            </div>
-
-            {/* Bio - 3-4 Sentence Paragraph */}
-            <div className="pt-2">
-                <p className="text-slate-200 text-sm md:text-base leading-relaxed font-medium">
-                    {scorecard.bio}
-                </p>
-            </div>
-
-            {/* Attributes - 4 Lines */}
-            <div className="pt-2 space-y-2">
-                {scorecard.attributes.map((attr, idx) => (
-                    <div key={idx}>
-                        <span className="font-black text-xs uppercase tracking-wider text-[#00FFFF]">
-                            {attr.label}:
-                        </span>
-                        {' '}
-                        <span className="text-white font-bold text-sm md:text-base">
-                            {Array.isArray(attr.value) ? attr.value.join(', ') : attr.value}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
     );
 };
