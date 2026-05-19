@@ -11,7 +11,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, title, onOpenSettings }) => {
     return (
-        <div className="min-h-screen bg-black text-white font-sans selection:bg-[#00FFFF] selection:text-black overflow-hidden relative">
+        <div className="min-h-screen bg-black text-white font-sans selection:bg-[#00FFFF] selection:text-black overflow-x-hidden overflow-y-auto relative">
             {/* Animated Background Gradients */}
             <div className="fixed inset-0 pointer-events-none">
                 <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,0,0.15),transparent_50%)]" />

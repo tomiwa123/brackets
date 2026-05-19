@@ -5,9 +5,10 @@ import type { Match } from '../types';
 import { Trophy, ChevronRight, Zap } from 'lucide-react';
 
 export const BracketView: React.FC = () => {
-    const { matches, currentRound, startVoting } = useGameStore();
+    const { matches, currentRound, startVoting, bracketSize } = useGameStore();
 
-    const rounds = [1, 2, 3, 4];
+    const totalRounds = Math.log2(bracketSize || 16);
+    const rounds = Array.from({ length: totalRounds }, (_, i) => i + 1);
     const matchesByRound = rounds.reduce((acc, round) => {
         acc[round] = matches.filter(m => m.round === round).sort((a, b) => a.matchIndex - b.matchIndex);
         return acc;
@@ -19,7 +20,7 @@ export const BracketView: React.FC = () => {
                 <div className="min-w-[1200px] flex justify-between px-8 gap-0">
                     {rounds.map((round) => {
                         const roundMatches = matchesByRound[round] || [];
-                        const totalMatchesInRound = round === 1 ? 8 : round === 2 ? 4 : round === 3 ? 2 : 1;
+                        const totalMatchesInRound = (bracketSize || 16) / Math.pow(2, round);
                         const placeholdersNeeded = totalMatchesInRound - roundMatches.length;
 
                         // Calculate height for each slot in this round
@@ -27,12 +28,18 @@ export const BracketView: React.FC = () => {
                         const BASE_HEIGHT = 100;
                         const slotHeight = BASE_HEIGHT * Math.pow(2, round - 1);
 
+                        const getRoundTitle = (r: number, totalR: number) => {
+                            const remainingRounds = totalR - r;
+                            if (remainingRounds === 0) return 'The Final';
+                            if (remainingRounds === 1) return 'Semifinals';
+                            if (remainingRounds === 2) return 'Quarterfinals';
+                            return `Round of ${Math.pow(2, remainingRounds + 1)}`;
+                        };
+
                         return (
                             <div key={round} className="flex flex-col justify-center flex-1 relative">
                                 <h3 className="absolute -top-16 left-0 right-0 text-center text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-red-500 font-black text-3xl uppercase tracking-widest mb-4 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)] italic transform -skew-x-6">
-                                    {round === 1 ? 'Round of 16' :
-                                        round === 2 ? 'Quarterfinals' :
-                                            round === 3 ? 'Semifinals' : 'The Final'}
+                                    {getRoundTitle(round, totalRounds)}
                                 </h3>
                                 <div className="flex flex-col w-full mt-8">
                                     {roundMatches.map((match) => (
@@ -45,7 +52,7 @@ export const BracketView: React.FC = () => {
                                             {round > 1 && (
                                                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/20" />
                                             )}
-                                            {round < 4 && (
+                                            {round < totalRounds && (
                                                 <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/20" />
                                             )}
                                             {/* Vertical Connectors for previous round children */}
@@ -70,7 +77,7 @@ export const BracketView: React.FC = () => {
                                             {round > 1 && (
                                                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/10" />
                                             )}
-                                            {round < 4 && (
+                                            {round < totalRounds && (
                                                 <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/10" />
                                             )}
 
@@ -96,7 +103,7 @@ export const BracketView: React.FC = () => {
                 className="mt-8 px-12 py-6 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 text-white font-black text-2xl rounded-2xl shadow-lg shadow-orange-500/40 flex items-center gap-3 border-4 border-white/20 uppercase tracking-widest italic transform -skew-x-6 hover:-translate-y-1 transition-all"
             >
                 <Trophy className="w-8 h-8 text-yellow-200" />
-                {currentRound === 1 && matches.length === 8 ? 'Start Tournament' : 'Continue Tournament'}
+                {currentRound === 1 && matches.length === ((bracketSize || 16) / 2) ? 'Start Tournament' : 'Continue Tournament'}
                 <ChevronRight className="w-8 h-8" />
             </motion.button>
         </div>
@@ -105,14 +112,18 @@ export const BracketView: React.FC = () => {
 
 const MatchCard: React.FC<{ match: Match }> = ({ match }) => {
     const isDecided = !!match.winner;
+    const { bracketSize } = useGameStore();
 
-    // Helper to calculate game number for existing matches
-    const getGameNum = (r: number, idx: number) => {
-        const offset = r === 1 ? 0 : r === 2 ? 8 : r === 3 ? 12 : 14;
+    // Helper to calculate game number dynamically based on size
+    const getGameNum = (r: number, idx: number, size: number) => {
+        let offset = 0;
+        for (let i = 1; i < r; i++) {
+            offset += size / Math.pow(2, i);
+        }
         return offset + idx + 1;
     };
 
-    const gameNum = getGameNum(match.round, match.matchIndex);
+    const gameNum = getGameNum(match.round, match.matchIndex, bracketSize || 16);
 
     return (
         <div className={`
@@ -155,23 +166,26 @@ const MatchCard: React.FC<{ match: Match }> = ({ match }) => {
 };
 
 const PlaceholderMatchCard: React.FC<{ round: number; matchIndex: number }> = ({ round, matchIndex }) => {
-    const { matches } = useGameStore();
+    const { matches, bracketSize } = useGameStore();
 
-    // Calculate global game number
-    const getGameNum = (r: number, idx: number) => {
-        const offset = r === 1 ? 0 : r === 2 ? 8 : r === 3 ? 12 : 14;
+    // Calculate global game number dynamically
+    const getGameNum = (r: number, idx: number, size: number) => {
+        let offset = 0;
+        for (let i = 1; i < r; i++) {
+            offset += size / Math.pow(2, i);
+        }
         return offset + idx + 1;
     };
 
-    const currentGameNum = getGameNum(round, matchIndex);
+    const currentGameNum = getGameNum(round, matchIndex, bracketSize || 16);
 
     // Calculate source game numbers and IDs
     const sourceRound = round - 1;
     const sourceMatch1Index = matchIndex * 2;
     const sourceMatch2Index = matchIndex * 2 + 1;
 
-    const sourceGame1 = getGameNum(sourceRound, sourceMatch1Index);
-    const sourceGame2 = getGameNum(sourceRound, sourceMatch2Index);
+    const sourceGame1 = getGameNum(sourceRound, sourceMatch1Index, bracketSize || 16);
+    const sourceGame2 = getGameNum(sourceRound, sourceMatch2Index, bracketSize || 16);
 
     // Find source matches to check for winners
     const sourceMatch1 = matches.find(m => m.round === sourceRound && m.matchIndex === sourceMatch1Index);

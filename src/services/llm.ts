@@ -9,12 +9,13 @@ interface GenerationResponse {
 export const generateWithLLM = async (
     topic: string,
     provider: 'gemini' | 'openai',
-    apiKey: string
+    apiKey: string,
+    count: number = 8
 ): Promise<Candidate[]> => {
     // MOCK DATA INJECTION FOR TESTING
     if (topic === 'dev_test' || topic === 'dev test') {
         await new Promise(resolve => setTimeout(resolve, 800)); // Slight delay for realism
-        return [
+        const devMock = [
             { id: "1", name: "Viper", bio: "Agile and deadly, the Viper strikes before you know it.", seed: 1, imageUrl: "https://images.unsplash.com/photo-1533055640609-24b498dfd74c?w=500&auto=format&fit=crop&q=60" },
             { id: "2", name: "Gecko", bio: "Small but sticky, the Gecko can climb any obstacle.", seed: 16, imageUrl: "https://images.unsplash.com/photo-1595186981180-2ba5763528e1?w=500&auto=format&fit=crop&q=60" },
             { id: "3", name: "Komodo Dragon", bio: "The king of lizards, with a bite that spells doom.", seed: 2, imageUrl: "https://images.unsplash.com/photo-1520626354676-e137f6a7354f?w=500&auto=format&fit=crop&q=60" },
@@ -32,15 +33,19 @@ export const generateWithLLM = async (
             { id: "15", name: "Blue Tongue", bio: "Deceptive looks with a powerful jaw.", seed: 8 },
             { id: "16", name: "Thorny Devil", bio: "Covered in spikes, impossible to swallow.", seed: 9 }
         ];
+        return devMock.slice(0, count).map((item, index) => ({
+            ...item,
+            seed: index + 1
+        }));
     }
 
     const prompt = `
-    Generate a list of exactly 16 distinct items related to the topic: "${topic}".
+    Generate a list of exactly ${count} distinct items related to the topic: "${topic}".
     For each item, provide:
-    1. A unique ID (1-16)
+    1. A unique ID (1-${count})
     2. Name
     3. A short, fun bio (max 2 sentences)
-    4. A seed number (1-16, where 1 is the strongest/most popular)
+    4. A seed number (1-${count}, where 1 is the strongest/most popular)
     
     Return ONLY a valid JSON object with a "candidates" array.
     Example format:
@@ -191,7 +196,7 @@ export const generateAllScorecards = async (
     }
 
     const prompt = `
-    Generate fun, debate-worthy scorecards for these 16 items in a tournament about "${topic}":
+    Generate fun, debate-worthy scorecards for these ${candidates.length} items in a tournament about "${topic}":
     ${candidates.map(c => `- ${c.name} (ID: ${c.id})`).join('\n')}
 
     For EACH item, provide:

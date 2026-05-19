@@ -6,7 +6,7 @@ import { useGameStore } from '../store/gameStore';
 export const TopicInput: React.FC = () => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { setTopic, generateBracket } = useGameStore();
+    const { setTopic, generateBracket, bracketSize, setBracketSize } = useGameStore();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -34,26 +34,26 @@ export const TopicInput: React.FC = () => {
                     {/* Decorative Top Border */}
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#FFFF00] via-[#00FFFF] to-[#FFFF00] opacity-70" />
 
-                    <div className="relative z-10 px-10 py-12">
+                    <div className="relative z-10 px-8 py-8 md:py-10">
                         {/* Icon */}
-                        <div className="flex justify-center mb-6">
+                        <div className="flex justify-center mb-4">
                             <div className="bg-gradient-to-br from-yellow-400 to-red-600 p-4 rounded-2xl shadow-[0_0_20px_rgba(239,68,68,0.5)] transform -rotate-3 hover:rotate-3 transition-transform duration-300 border-2 border-white/20">
                                 <Sparkles className="w-10 h-10 text-white" />
                             </div>
                         </div>
 
                         {/* Heading */}
-                        <h1 className="text-5xl font-black italic text-center mb-6 text-transparent bg-clip-text bg-gradient-to-r from-[#FFFF00] via-orange-500 to-red-500 uppercase tracking-tighter transform -skew-x-6 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
+                        <h1 className="text-4xl md:text-5xl font-black italic text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#FFFF00] via-orange-500 to-red-500 uppercase tracking-tighter transform -skew-x-6 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
                             Tournament Brackets
                         </h1>
 
                         {/* Description */}
-                        <div className="mb-8 space-y-3 text-center">
+                        <div className="mb-4 space-y-2 text-center">
                             <p className="text-slate-300 text-lg leading-relaxed">
                                 Settle the ultimate debates with <span className="text-[#00FFFF] font-bold">AI-powered tournament brackets</span>.
                             </p>
                             <p className="text-slate-300 text-base leading-relaxed">
-                                Pick any topic, watch as 16 contenders battle head-to-head, and crown the champion!
+                                Pick any topic, watch as {bracketSize} contenders battle head-to-head, and crown the champion!
                             </p>
                             <p className="text-slate-400 text-sm italic">
                                 From pizza toppings to superheroes—let the voting begin.
@@ -61,52 +61,83 @@ export const TopicInput: React.FC = () => {
                         </div>
 
                         {/* Divider */}
-                        <div className="flex items-center justify-center mb-8">
+                        <div className="flex items-center justify-center mb-6">
                             <div className="h-px bg-gradient-to-r from-transparent via-[#00FFFF]/50 to-transparent w-3/4" />
                         </div>
 
                         {/* Form Section */}
-                        <div className="space-y-5">
+                        <div className="w-full flex flex-col gap-6 items-center">
                             <p className="text-center text-[#00FFFF] font-bold tracking-[0.2em] uppercase text-xs drop-shadow-[0_0_5px_rgba(0,255,255,0.5)]">
                                 Start Your Tournament
                             </p>
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Bracket Size Toggle */}
+                            <div className="flex flex-col items-center gap-3 w-full" style={{ maxWidth: '20rem' }}>
+                                <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                    Bracket Size
+                                </span>
+                                <div className="w-full bg-black/60 border border-white/10 rounded-xl p-1 relative flex items-center overflow-hidden">
+                                    <button
+                                        type="button"
+                                        onClick={() => setBracketSize(8)}
+                                        className={`flex-1 py-2 rounded-lg text-sm font-black uppercase tracking-wider transition-colors duration-200 relative z-10 ${bracketSize === 8 ? 'text-black font-black' : 'text-slate-400 hover:text-white font-bold'}`}
+                                        disabled={isLoading}
+                                    >
+                                        8 Contenders
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setBracketSize(16)}
+                                        className={`flex-1 py-2 rounded-lg text-sm font-black uppercase tracking-wider transition-colors duration-200 relative z-10 ${bracketSize === 16 ? 'text-black font-black' : 'text-slate-400 hover:text-white font-bold'}`}
+                                        disabled={isLoading}
+                                    >
+                                        16 Contenders
+                                    </button>
+                                    {/* Sliding active background indicator */}
+                                    <motion.div
+                                        className="absolute inset-y-1 bg-gradient-to-r from-[#00FFFF] to-[#FFFF00] rounded-lg shadow-[0_0_15px_rgba(0,255,255,0.5)]"
+                                        initial={false}
+                                        animate={{
+                                            left: bracketSize === 8 ? '4px' : 'calc(50% - 2px)',
+                                            width: 'calc(50% - 2px)'
+                                        }}
+                                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                                    />
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6 items-center">
                                 {/* Input - Constrained width */}
-                                <div className="flex justify-center">
-                                    <div className="relative group" style={{ width: '100%', maxWidth: '20rem' }}>
-                                        <input
-                                            type="text"
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            placeholder="e.g. 80s Action Movies"
-                                            className="w-full px-5 py-3.5 bg-black/50 border-2 border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all text-base font-semibold text-center tracking-wide shadow-[0_0_20px_rgba(0,255,255,0.1)] focus:shadow-[0_0_30px_rgba(0,255,255,0.2)]"
-                                            disabled={isLoading}
-                                        />
-                                        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#00FFFF]/20 to-[#FF00FF]/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                    </div>
+                                <div className="relative group w-full" style={{ maxWidth: '20rem' }}>
+                                    <input
+                                        type="text"
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        placeholder="e.g. 80s Action Movies"
+                                        className="w-full px-5 py-3.5 bg-black/50 border-2 border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all text-base font-semibold text-center tracking-wide shadow-[0_0_20px_rgba(0,255,255,0.1)] focus:shadow-[0_0_30px_rgba(0,255,255,0.2)]"
+                                        disabled={isLoading}
+                                    />
+                                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#00FFFF]/20 to-[#FF00FF]/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                 </div>
 
-                                {/* Button - Inline block for natural width */}
-                                <div className="flex justify-center" style={{ marginTop: '1.5rem' }}>
-                                    <button
-                                        type="submit"
-                                        disabled={!input.trim() || isLoading}
-                                        className="px-10 py-3.5 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 hover:from-yellow-300 hover:via-orange-400 hover:to-red-500 text-white font-black text-lg italic tracking-widest rounded-xl shadow-[0_0_30px_rgba(249,115,22,0.5)] transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-3 uppercase border-b-4 border-red-900 active:border-b-0 active:translate-y-1"
-                                    >
-                                        {isLoading ? (
-                                            <>
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                                Generating...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Play className="w-5 h-5 fill-current" />
-                                                Let's Go!
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
+                                {/* Button */}
+                                <button
+                                    type="submit"
+                                    disabled={!input.trim() || isLoading}
+                                    className="px-10 py-3.5 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 hover:from-yellow-300 hover:via-orange-400 hover:to-red-500 text-white font-black text-lg italic tracking-widest rounded-xl shadow-[0_0_30px_rgba(249,115,22,0.5)] transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-3 uppercase border-b-4 border-red-900 active:border-b-0 active:translate-y-1"
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play className="w-5 h-5 fill-current" />
+                                            Let's Go!
+                                        </>
+                                    )}
+                                </button>
                             </form>
                         </div>
                     </div>

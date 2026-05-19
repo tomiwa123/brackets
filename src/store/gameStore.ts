@@ -20,21 +20,24 @@ export const useGameStore = create<GameStore>()(
             currentMatchIndex: 0,
             currentRound: 1,
             phase: 'input',
+            bracketSize: 8,
 
             setTopic: (topic: string) => set({ topic }),
+            setBracketSize: (bracketSize: 8 | 16) => set({ bracketSize }),
 
             generateBracket: async () => {
-                const { topic } = get();
+                const { topic, bracketSize } = get();
                 if (!topic) return;
 
-                const candidates = await generateCandidates(topic);
+                const candidates = await generateCandidates(topic, bracketSize);
 
                 // Shuffle candidates for randomized bracket placement
                 const shuffled = [...candidates].sort(() => Math.random() - 0.5);
 
                 // Create initial matches (Round 1)
                 const matches: Match[] = [];
-                for (let i = 0; i < 8; i++) {
+                const matchCount = bracketSize / 2;
+                for (let i = 0; i < matchCount; i++) {
                     matches.push({
                         id: `r1-m${i}`,
                         round: 1,
@@ -103,7 +106,7 @@ export const useGameStore = create<GameStore>()(
             },
 
             vote: (winnerId: string) => {
-                const { matches, currentMatchIndex, currentRound } = get();
+                const { matches, currentMatchIndex, currentRound, bracketSize } = get();
 
                 // Find current match
                 const currentMatch = matches.find(
@@ -125,7 +128,8 @@ export const useGameStore = create<GameStore>()(
                 const isRoundComplete = currentRoundMatches.every(m => m.winner);
 
                 if (isRoundComplete) {
-                    if (currentRound === 4) {
+                    const totalRounds = Math.log2(bracketSize);
+                    if (currentRound === totalRounds) {
                         // Game Over - Winner determined
                         set({ matches: updatedMatches, phase: 'winner' });
                     } else {
@@ -193,6 +197,7 @@ export const useGameStore = create<GameStore>()(
                 currentMatchIndex: state.currentMatchIndex,
                 currentRound: state.currentRound,
                 phase: state.phase,
+                bracketSize: state.bracketSize,
             }),
         }
     )

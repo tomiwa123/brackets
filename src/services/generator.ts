@@ -20,14 +20,14 @@ const MOCK_REPTILES: Candidate[] = [
     { id: '16', name: 'Viper', seed: 16, bio: 'A family of venomous snakes found in most parts of the world.' },
 ];
 
-export const generateCandidates = async (topic: string): Promise<Candidate[]> => {
+export const generateCandidates = async (topic: string, count: number = 8): Promise<Candidate[]> => {
     const apiKey = localStorage.getItem('llm_api_key');
     const provider = (localStorage.getItem('llm_provider') as 'gemini' | 'openai') || 'gemini';
 
     if (apiKey) {
         try {
             console.log(`Generating candidates for topic: ${topic} using ${provider}`);
-            return await generateWithLLM(topic, provider, apiKey);
+            return await generateWithLLM(topic, provider, apiKey, count);
         } catch (error: any) {
             console.error("Failed to generate with LLM, falling back to mock.", error);
             const errorMessage = error?.message || "Unknown error";
@@ -40,6 +40,6 @@ export const generateCandidates = async (topic: string): Promise<Candidate[]> =>
     // Simulate API delay for mock
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // Return mock data (maybe shuffle names slightly if we wanted, but keeping simple)
-    return MOCK_REPTILES;
+    // Return mock data sliced to requested count
+    return MOCK_REPTILES.slice(0, count);
 };

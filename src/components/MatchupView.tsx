@@ -5,13 +5,22 @@ import type { Candidate } from '../types';
 import { Swords, Loader2 } from 'lucide-react';
 
 export const MatchupView: React.FC = () => {
-    const { matches, currentRound, currentMatchIndex, vote } = useGameStore();
+    const { matches, currentRound, currentMatchIndex, vote, bracketSize } = useGameStore();
 
     const currentMatch = matches.find(
         m => m.round === currentRound && m.matchIndex === currentMatchIndex
     );
 
     if (!currentMatch) return null;
+
+    const totalRounds = Math.log2(bracketSize || 16);
+    const getRoundCode = (r: number, totalR: number) => {
+        const remainingRounds = totalR - r;
+        if (remainingRounds === 0) return 'Final';
+        if (remainingRounds === 1) return 'SF';
+        if (remainingRounds === 2) return 'QF';
+        return 'Ro' + Math.pow(2, remainingRounds + 1);
+    };
 
     return (
         <div className="w-full h-full flex flex-col px-4 pb-8">
@@ -28,7 +37,7 @@ export const MatchupView: React.FC = () => {
                     <div className="flex items-baseline gap-2">
                         <span className="text-yellow-500 font-bold text-xs uppercase tracking-widest">Round</span>
                         <span className="text-xl font-black text-white italic">
-                            {currentRound === 1 ? 'Ro16' : currentRound === 2 ? 'QF' : currentRound === 3 ? 'SF' : 'Final'}
+                            {getRoundCode(currentRound, totalRounds)}
                         </span>
                     </div>
                     <span className="text-white/20">|</span>

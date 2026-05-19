@@ -38,9 +38,11 @@ export interface GameState {
     currentMatchIndex: number; // Index in the current round's matches
     currentRound: number;
     phase: GamePhase;
+    bracketSize: 8 | 16;
 
     // Actions
     setTopic: (topic: string) => void;
+    setBracketSize: (size: 8 | 16) => void;
     generateBracket: () => Promise<void>;
     startVoting: () => void;
     vote: (winnerId: string) => void;

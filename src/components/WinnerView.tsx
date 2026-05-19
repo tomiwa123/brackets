@@ -5,9 +5,10 @@ import { Crown } from 'lucide-react';
 // import Confetti from 'react-confetti';
 
 export const WinnerView: React.FC = () => {
-    const { matches, resetGame } = useGameStore();
+    const { matches, resetGame, bracketSize } = useGameStore();
 
-    const finalMatch = matches.find(m => m.round === 4);
+    const finalRound = Math.log2(bracketSize || 16);
+    const finalMatch = matches.find(m => m.round === finalRound);
     const winner = finalMatch?.winner;
 
     if (!winner) return null;
