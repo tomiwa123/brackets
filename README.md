@@ -37,7 +37,7 @@ A vibrant, interactive parlour game to compare members of a group in a tournamen
 
 ### Prerequisites
 
-- Node.js (v18 or higher recommended)
+- Node.js (v20 or higher required, v22+ recommended)
 - npm or yarn package manager
 
 ### Setup Steps
@@ -80,9 +80,13 @@ A vibrant, interactive parlour game to compare members of a group in a tournamen
 
 ### Development Mode
 
-Start the development server with hot module replacement:
+Start the development server with hot module replacement (requires Node 20+):
 
 ```bash
+# If using NVM, ensure you use Node 20 or higher (e.g., v22)
+nvm use 22
+
+# Start the dev server
 npm run dev
 ```
 
