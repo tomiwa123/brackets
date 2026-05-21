@@ -21,9 +21,11 @@ export const useGameStore = create<GameStore>()(
             currentRound: 1,
             phase: 'input',
             bracketSize: 8,
+            error: null,
 
             setTopic: (topic: string) => set({ topic }),
             setBracketSize: (bracketSize: 8 | 16) => set({ bracketSize }),
+            setError: (error: string | null) => set({ error }),
 
             generateBracket: async () => {
                 const { topic, bracketSize } = get();
@@ -181,6 +183,7 @@ export const useGameStore = create<GameStore>()(
                     currentMatchIndex: 0,
                     currentRound: 1,
                     phase: 'input',
+                    error: null,
                 });
             },
 
@@ -198,6 +201,7 @@ export const useGameStore = create<GameStore>()(
                 currentRound: state.currentRound,
                 phase: state.phase,
                 bracketSize: state.bracketSize,
+                error: state.error,
             }),
         }
     )

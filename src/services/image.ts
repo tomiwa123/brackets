@@ -1,5 +1,3 @@
-import { getCandidateImage as getAIImage } from './llm';
-
 export const fetchGoogleImage = async (
     query: string,
     apiKey: string,
@@ -35,11 +33,39 @@ export const getCandidateImage = async (
     const googleKey = localStorage.getItem('google_search_key');
     const googleCx = localStorage.getItem('google_search_cx');
 
+    const query = `${name} ${topic}`;
+
+    // 1. BYOK: If user provided their own key, use it directly (bypasses limits)
     if (googleKey && googleCx) {
-        const googleImage = await fetchGoogleImage(`${name} ${topic}`, googleKey, googleCx);
+        const googleImage = await fetchGoogleImage(query, googleKey, googleCx);
         if (googleImage) return googleImage;
+        return ""; // Fallback to empty to trigger neon grid
     }
 
-    // Fallback to AI generation
-    return getAIImage(name, topic);
+    // 2. TIER 2/3: Fetch via Secure Backend
+    try {
+        const vipPassword = localStorage.getItem('llm_api_key') || ''; // The password field
+        const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-vip-password': vipPassword,
+            },
+            body: JSON.stringify({
+                type: 'image',
+                query
+            })
+        });
+
+        if (!response.ok) {
+            console.warn("Backend Image API exhausted or failed", response.status);
+            return ""; // Fallback to neon grid placeholder
+        }
+
+        const data = await response.json();
+        return data.imageUrl || "";
+    } catch (error) {
+        console.error("Backend Image API network error:", error);
+        return ""; // Fallback to neon grid placeholder
+    }
 };

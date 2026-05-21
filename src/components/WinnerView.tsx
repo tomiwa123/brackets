@@ -6,6 +6,7 @@ import { Crown } from 'lucide-react';
 
 export const WinnerView: React.FC = () => {
     const { matches, resetGame, bracketSize } = useGameStore();
+    const [imageError, setImageError] = React.useState(false);
 
     const finalRound = Math.log2(bracketSize || 16);
     const finalMatch = matches.find(m => m.round === finalRound);
@@ -33,18 +34,20 @@ export const WinnerView: React.FC = () => {
                     </h2>
 
                     <div className="relative w-64 h-64 mx-auto mb-8 rounded-2xl overflow-hidden border-4 border-white/20 shadow-2xl group">
-                        {winner.imageUrl ? (
+                        {winner.imageUrl && !imageError ? (
                             <img
                                 src={winner.imageUrl}
                                 alt={winner.name}
                                 className="w-full h-full object-cover"
+                                onError={() => setImageError(true)}
                             />
                         ) : (
-                            <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-                                <span className="text-8xl font-black text-white/10">{winner.name.charAt(0)}</span>
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-purple-950/20 to-black p-4 relative overflow-hidden">
+                                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ff008010_1px,transparent_1px),linear-gradient(to_bottom,#ff008010_1px,transparent_1px)] bg-[size:15px_15px] opacity-40" />
+                                <Crown className="w-12 h-12 text-[#FFFF00]/40 animate-pulse relative z-10" />
                             </div>
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
                         <div className="absolute bottom-0 left-0 right-0 p-4">
                             <h3 className="text-3xl font-black text-white uppercase italic tracking-wider">
                                 {winner.name}

@@ -1,5 +1,6 @@
 import type { Candidate } from '../types';
 import { generateWithLLM } from './llm';
+import { useGameStore } from '../store/gameStore';
 
 const MOCK_REPTILES: Candidate[] = [
     { id: '1', name: 'Komodo Dragon', seed: 1, bio: 'The largest living lizard species, known for its venomous bite and strength.' },
@@ -21,20 +22,45 @@ const MOCK_REPTILES: Candidate[] = [
 ];
 
 export const generateCandidates = async (topic: string, count: number = 8): Promise<Candidate[]> => {
-    const apiKey = localStorage.getItem('llm_api_key');
+    const rawKey = localStorage.getItem('llm_api_key') || '';
     const provider = (localStorage.getItem('llm_provider') as 'gemini' | 'openai') || 'gemini';
 
-    if (apiKey) {
-        try {
-            console.log(`Generating candidates for topic: ${topic} using ${provider}`);
-            return await generateWithLLM(topic, provider, apiKey, count);
-        } catch (error: any) {
-            console.error("Failed to generate with LLM, falling back to mock.", error);
-            const errorMessage = error?.message || "Unknown error";
-            alert(`Failed to generate with AI: ${errorMessage}\n\nCheck your API key and try again. Falling back to mock data.`);
+    // BYOK keys typically start with sk- (OpenAI) or AIza (Gemini)
+    const isByok = rawKey.startsWith('sk-') || rawKey.startsWith('AIza');
+
+    try {
+        if (isByok) {
+            console.log(`Generating candidates natively using BYOK ${provider}`);
+            return await generateWithLLM(topic, provider, rawKey, count);
+        } else {
+            console.log(`Generating candidates via Secure Backend (Tier 2/3)`);
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-vip-password': rawKey, // Empty for Global Pool, or populated for VIP
+                },
+                body: JSON.stringify({
+                    type: 'candidates',
+                    topic,
+                    count,
+                    provider
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data.candidates) throw new Error("Invalid response format from backend");
+            return data.candidates;
         }
-    } else {
-        console.log("No API key found, using mock data.");
+    } catch (error: any) {
+        console.error("Failed to generate with LLM, falling back to mock.", error);
+        const errorMessage = error?.message || "Unknown error";
+        useGameStore.getState().setError(`Scouting generation failed (${errorMessage}). Setting up classic mock contenders!`);
     }
 
     // Simulate API delay for mock

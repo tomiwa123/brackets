@@ -25,15 +25,15 @@ export const MatchupView: React.FC = () => {
     return (
         <div className="w-full h-full flex flex-col px-4 pb-8">
             {/* Header Area - Simplified & Cleaner */}
-            <div className="text-center mb-8 relative z-10 pt-4">
+            <div className="w-full flex flex-col md:flex-row md:justify-between items-center gap-4 mb-8 relative z-10 pt-4 px-2">
                 <button
                     onClick={useGameStore.getState().showBracket}
-                    className="absolute left-0 top-6 text-white/50 hover:text-yellow-400 transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
+                    className="text-white/50 hover:text-yellow-400 transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest shrink-0 border border-white/10 hover:border-yellow-400/50 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-yellow-400/10"
                 >
                     <Swords className="w-4 h-4 rotate-90" /> View Bracket
                 </button>
 
-                <div className="flex items-center justify-center gap-4 opacity-80">
+                <div className="flex items-center justify-center gap-4 opacity-80 md:mr-24">
                     <div className="flex items-baseline gap-2">
                         <span className="text-yellow-500 font-bold text-xs uppercase tracking-widest">Round</span>
                         <span className="text-xl font-black text-white italic">
@@ -48,6 +48,8 @@ export const MatchupView: React.FC = () => {
                         </span>
                     </div>
                 </div>
+
+                <div className="hidden md:block w-24" />
             </div>
 
             {/* Main Arena */}
@@ -87,6 +89,7 @@ const CandidateCard: React.FC<{
     isWinner?: boolean;
 }> = ({ candidate, onVote, side }) => {
     const isLeft = side === 'left';
+    const [imageError, setImageError] = React.useState(false);
 
     return (
         <motion.div
@@ -99,27 +102,37 @@ const CandidateCard: React.FC<{
 
                 {/* Image Section with Marquee Overlay */}
                 <div className="relative h-[350px] shrink-0 w-full bg-slate-900 group-hover:brightness-110 transition-all duration-500">
-                    {candidate.imageUrl ? (
+                    {candidate.imageUrl && !imageError ? (
                         <img
                             src={candidate.imageUrl}
                             alt={candidate.name}
                             className="w-full h-full object-cover"
+                            onError={() => setImageError(true)}
                         />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-black">
-                            <span className="text-8xl font-black text-white/5 select-none">?</span>
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-purple-950/20 to-black p-6 relative overflow-hidden">
+                            {/* Neon Grid Backing */}
+                            <div className="absolute inset-0 bg-[linear-gradient(to_right,#ff008010_1px,transparent_1px),linear-gradient(to_bottom,#ff008010_1px,transparent_1px)] bg-[size:20px_20px] opacity-40" />
+                            
+                            {/* Cool Cyberpunk silhouette/icon */}
+                            <div className="relative w-32 h-32 rounded-2xl bg-black/40 border border-[#00FFFF]/30 flex items-center justify-center shadow-[0_0_20px_rgba(0,255,255,0.15)] mb-4">
+                                <Swords className="w-16 h-16 text-[#00FFFF]/40 animate-pulse" />
+                            </div>
+                            <span className="text-slate-500 font-bold uppercase tracking-widest text-[10px] bg-slate-950 px-3 py-1 rounded-full border border-white/5 relative z-10">
+                                Scouting Asset Offline
+                            </span>
                         </div>
                     )}
 
                     {/* Seed Badge - Minimalist */}
-                    <div className="absolute top-4 right-4">
+                    <div className="absolute top-4 right-4 z-20">
                         <span className="bg-black/80 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-white/90 flex items-center gap-1 border border-white/10">
                             #{candidate.seed}
                         </span>
                     </div>
 
                     {/* Gradient Overlay for Image Depth */}
-                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent z-10" />
                 </div>
 
                 {/* Content Section */}

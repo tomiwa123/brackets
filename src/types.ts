@@ -39,6 +39,7 @@ export interface GameState {
     currentRound: number;
     phase: GamePhase;
     bracketSize: 8 | 16;
+    error: string | null;
 
     // Actions
     setTopic: (topic: string) => void;
@@ -48,4 +49,5 @@ export interface GameState {
     vote: (winnerId: string) => void;
     enrichMatchup: () => Promise<void>;
     resetGame: () => void;
+    setError: (error: string | null) => void;
 }

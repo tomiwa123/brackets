@@ -129,7 +129,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 <div className="space-y-8">
                                     <div className="space-y-4">
                                         <label className="text-sm font-bold text-slate-300 uppercase tracking-widest block">
-                                            {provider === 'gemini' ? 'Gemini API Key' : 'OpenAI API Key'}
+                                            Access Key or Password
                                         </label>
                                         <div className="relative group">
                                             <Key className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-orange-400 transition-colors" />
@@ -137,12 +137,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                                 type="password"
                                                 value={apiKey}
                                                 onChange={(e) => setApiKey(e.target.value)}
-                                                placeholder={`Paste your ${provider === 'gemini' ? 'Gemini' : 'OpenAI'} API Key here`}
+                                                placeholder={`Paste your own API Key, or a VIP Password`}
                                                 className="w-full pl-14 pr-6 py-5 bg-black/40 border-2 border-white/10 rounded-2xl focus:border-orange-500 outline-none text-white placeholder-slate-600 transition-all font-mono text-base shadow-inner"
                                             />
                                         </div>
-                                        <p className="text-xs text-slate-500 pl-2 font-medium">
-                                            Your key is stored locally in your browser and never sent to our servers.
+                                        <p className="text-xs text-slate-500 pl-2 font-medium leading-relaxed">
+                                            Leave blank to use the highly restricted <strong className="text-white">Global Free Pool</strong>. <br/>
+                                            Enter a <strong className="text-white">VIP Password</strong> to access the generous Friends Pool, or paste your own <strong className="text-white">OpenAI/Gemini API Key</strong> for unlimited local generation.
                                         </p>
                                     </div>
 

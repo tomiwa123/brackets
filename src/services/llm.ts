@@ -195,61 +195,107 @@ export const generateAllScorecards = async (
         return results;
     }
 
-    const prompt = `
-    Generate fun, debate-worthy scorecards for these ${candidates.length} items in a tournament about "${topic}":
-    ${candidates.map(c => `- ${c.name} (ID: ${c.id})`).join('\n')}
-
-    For EACH item, provide:
-    1. "battleCry": A short, punchy motto (catchphrase style).
-    2. "bio": A compelling 3-4 sentence description that explains why this item is notable in the context of "${topic}". 
-       Make it informative, engaging, and relevant to the category.
-    3. "attributes": Generate EXACTLY 4 succinct, creative bullet points relevant to "${topic}".
-       - One MUST be "Strength" (positive), one "Weakness" (negative).
-       - Others can be neutral/fun.
-       - Keep each value SHORT and punchy (1-3 words ideally).
-
-    Return ONLY a valid JSON object keyed by candidate ID:
-    {
-      "1": {
-        "battleCry": "...",
-        "bio": "3-4 sentences here...",
-        "attributes": [
-          { "label": "...", "value": "...", "sentiment": "positive"|"negative"|"neutral" }
-        ]
-      },
-      ...
-    }
-    `;
+    const isByok = apiKey.startsWith('sk-') || apiKey.startsWith('AIza');
 
     try {
-        if (provider === 'gemini') {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-            const result = await model.generateContent(prompt);
-            const text = result.response.text();
-            const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
-            return JSON.parse(jsonStr);
+        if (isByok) {
+            const prompt = `
+            Generate fun, debate-worthy scorecards for these ${candidates.length} items in a tournament about "${topic}":
+            ${candidates.map(c => `- ${c.name} (ID: ${c.id})`).join('\n')}
+
+            For EACH item, provide:
+            1. "battleCry": A short, punchy motto (catchphrase style).
+            2. "bio": A compelling 3-4 sentence description that explains why this item is notable in the context of "${topic}". 
+               Make it informative, engaging, and relevant to the category.
+            3. "attributes": Generate EXACTLY 4 succinct, creative bullet points relevant to "${topic}".
+               - One MUST be "Strength" (positive), one "Weakness" (negative).
+               - Others can be neutral/fun.
+               - Keep each value SHORT and punchy (1-3 words ideally).
+
+            Return ONLY a valid JSON object keyed by candidate ID:
+            {
+              "1": {
+                "battleCry": "...",
+                "bio": "3-4 sentences here...",
+                "attributes": [
+                  { "label": "...", "value": "...", "sentiment": "positive"|"negative"|"neutral" }
+                ]
+              },
+              ...
+            }
+            `;
+
+            if (provider === 'gemini') {
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                const result = await model.generateContent(prompt);
+                const text = result.response.text();
+                const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
+                return JSON.parse(jsonStr);
+            } else {
+                const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+                const completion = await openai.chat.completions.create({
+                    messages: [{ role: "user", content: prompt }],
+                    model: "gpt-4o-mini",
+                    response_format: { type: "json_object" },
+                });
+                const content = completion.choices[0].message.content;
+                if (!content) throw new Error("No content");
+                return JSON.parse(content);
+            }
         } else {
-            const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
-            const completion = await openai.chat.completions.create({
-                messages: [{ role: "user", content: prompt }],
-                model: "gpt-4o-mini",
-                response_format: { type: "json_object" },
+            console.log(`Generating scorecards via Secure Backend`);
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-vip-password': apiKey,
+                },
+                body: JSON.stringify({
+                    type: 'scorecards',
+                    topic,
+                    count: candidates.length,
+                    candidatesData: candidates,
+                    provider
+                })
             });
-            const content = completion.choices[0].message.content;
-            if (!content) throw new Error("No content");
-            return JSON.parse(content);
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+            }
+
+            return await response.json();
         }
-    } catch (error) {
-        console.error("Bulk Scorecard Error:", error);
-        return {};
+    } catch (error: any) {
+        console.error("Bulk Scorecard Error, generating robust client-side fallbacks:", error);
+        
+        const errorMessage = error?.message || "Unknown error";
+        try {
+            // Use dynamic import to avoid circular dependency since store imports llm
+            import('../store/gameStore').then(({ useGameStore }) => {
+                useGameStore.getState().setError(`Scouting reports failed (${errorMessage}). Attributes generated locally!`);
+            });
+        } catch (e) {
+            console.error("Failed to set store error:", e);
+        }
+
+        // Generate robust fallback scorecards locally so the app NEVER hangs on loading spinners!
+        const results: Record<string, Candidate['scorecard']> = {};
+        for (const c of candidates) {
+            results[c.id] = {
+                battleCry: `Fear the might of ${c.name}!`,
+                bio: `${c.name} is a legendary contender stepping into the "${topic}" arena. Possessing unparalleled spirit, unique tactical assets, and solid backing from its supporters, it is prepared to conquer all matchups in this tournament bracket.`,
+                attributes: [
+                    { label: "Strength", value: "Iron Will", sentiment: "positive" },
+                    { label: "Weakness", value: "Overconfidence", sentiment: "negative" },
+                    { label: "Specialty", value: "Crowd Favorite", sentiment: "neutral" },
+                    { label: "Hype Level", value: "Over 9000", sentiment: "neutral" }
+                ]
+            };
+        }
+        return results;
     }
 };
 
-export const getCandidateImage = (name: string, topic: string): string => {
-    // Use pollinations.ai for free, fast image generation
-    // Add random seed to prevent caching/duplicates for similar items
-    const seed = Math.floor(Math.random() * 10000);
-    const prompt = encodeURIComponent(`high quality, 3d render, icon, ${name} related to ${topic}, vibrant, game asset style`);
-    return `https://image.pollinations.ai/prompt/${prompt}?width=512&height=512&nologo=true&seed=${seed}`;
-};
+

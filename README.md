@@ -76,40 +76,38 @@ A vibrant, interactive parlour game to compare members of a group in a tournamen
    > [!NOTE]
    > If Google Image Search is not configured or an error occurs, the app automatically falls back to AI-generated images using your selected provider.
 
-## 🚀 Running the Application
+## 🚀 Running the Application (Full-Stack Setup)
 
-### Development Mode
+This application uses a modern **Vite Frontend + Vercel Serverless Backend** architecture to securely manage AI API keys and enforce true global rate limiting. Because of the secure `api/` folder, you cannot use standard `npm run dev` to start the app.
 
-Start the development server with hot module replacement (requires Node 20+):
-
+### 1. Initial Vercel CLI Setup (One-time)
+Install the Vercel CLI globally:
 ```bash
-# If using NVM, ensure you use Node 20 or higher (e.g., v22)
-nvm use 22
-
-# Start the dev server
-npm run dev
+npm i -g vercel
 ```
 
-The app will be available at `http://localhost:5173` (or another port if 5173 is in use).
+Link your local project to your Vercel project:
+```bash
+vercel link
+```
+
+Pull down the secure environment variables (your LLM API keys and Redis credentials):
+```bash
+vercel env pull .env.local
+```
+
+### 2. Starting the Local Environment
+To start the application locally with both the React frontend and the secure serverless backend running simultaneously, use:
+```bash
+vercel dev
+```
+
+The app will be available at `http://localhost:3000`.
 
 ### Production Build
-
-Build the optimized production bundle:
-
+Build the optimized production bundle (handled automatically by Vercel on push):
 ```bash
 npm run build
-```
-
-This will:
-1. Run TypeScript compilation (`tsc -b`)
-2. Create an optimized build in the `dist/` directory
-
-### Preview Production Build
-
-Preview the production build locally:
-
-```bash
-npm run preview
 ```
 
 ### Linting
