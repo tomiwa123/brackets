@@ -1,9 +1,26 @@
+import * as dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { Redis } from '@upstash/redis';
+const envPath = path.resolve(__dirname, '..', '.env.local');
+dotenv.config({ path: envPath });
+
+
+  VIP_PASSWORD: process.env.VIP_PASSWORD ?? '⚠️ NOT SET',
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL ?? '⚠️ NOT SET',
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN ?? '⚠️ NOT SET',
+  SECRET_OPENAI_KEY: process.env.SECRET_OPENAI_KEY ?? '⚠️ NOT SET',
+  SECRET_GEMINI_KEY: process.env.SECRET_GEMINI_KEY ?? '⚠️ NOT SET',
+  SECRET_GOOGLE_SEARCH_KEY: process.env.SECRET_GOOGLE_SEARCH_KEY ?? '⚠️ NOT SET',
+  SECRET_GOOGLE_SEARCH_CX: process.env.SECRET_GOOGLE_SEARCH_CX ?? '⚠️ NOT SET',
+});
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
 // Initialize Redis client using environment variables
-// Vercel handles passing UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
+// Vercel handles passing UPSTASH_REDIS_REST_URL and _REST_TOKEN
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL || '',
   token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
@@ -19,7 +36,19 @@ const SECRET_GOOGLE_SEARCH_CX = process.env.SECRET_GOOGLE_SEARCH_CX || '';
 const GLOBAL_LIMIT = 2; // Strict worldwide limit
 const VIP_LIMIT = 10;   // Strict worldwide limit for friends pool
 
+
+  
+
+
 export default async function handler(req: any, res: any) {
+  // Log environment variables on every request, even if none are set
+  
+  // Existing CORS configuration
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-vip-password');
+
   // CORS configuration for local development and production
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -35,8 +64,19 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { type, topic, count, provider = 'gemini', candidatesData, query } = req.body;
+  // Determine which LLM provider to use. Default to Gemini, but fall back to OpenAI if the Gemini key is missing.
+  let { type, topic, count, provider, candidatesData, query } = req.body;
+  // If provider not supplied, pick based on available keys
+  if (!provider) {
+  provider = SECRET_GEMINI_KEY ? 'gemini' : 'openai';
+}
+// If Gemini is requested but its key is missing, gracefully fall back to OpenAI
+if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
+  provider = 'openai';
+}
   const providedPassword = req.headers['x-vip-password'] || '';
+
+
 
   // 1. DETERMINE TIER & RATE LIMIT
   let isVip = false;
@@ -56,11 +96,11 @@ export default async function handler(req: any, res: any) {
   try {
     if (process.env.UPSTASH_REDIS_REST_URL) {
       const currentCount = await redis.get(redisKey) as number | null;
-      
+
       if (currentCount && currentCount >= limit) {
-        return res.status(429).json({ 
-          error: isVip 
-            ? 'VIP pool exhausted for this hour. Please try again later.' 
+        return res.status(429).json({
+          error: isVip
+            ? 'VIP pool exhausted for this hour. Please try again later.'
             : 'Global public pool exhausted for this hour (Max 2). Please try again later or enter a valid access key/password in settings.'
         });
       }
@@ -74,10 +114,10 @@ export default async function handler(req: any, res: any) {
         }
       }
     } else {
-      console.warn("No Redis credentials found. Skipping rate limit (DEV ONLY).");
+  
     }
   } catch (err) {
-    console.error("Redis Error:", err);
+
   }
 
   // 4. EXECUTE LOGIC
@@ -89,18 +129,18 @@ export default async function handler(req: any, res: any) {
 
       const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&cx=${SECRET_GOOGLE_SEARCH_CX}&key=${SECRET_GOOGLE_SEARCH_KEY}&searchType=image&num=1&safe=active`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
-          throw new Error('Google Image Search API Error');
+        throw new Error('Google Image Search API Error');
       }
 
       const data = await response.json();
       if (data.items && data.items.length > 0) {
-          return res.status(200).json({ imageUrl: data.items[0].link });
+        return res.status(200).json({ imageUrl: data.items[0].link });
       }
       return res.status(404).json({ error: 'No image found' });
     }
-    
+
     // GET SECURE LLM API KEY
     const apiKey = provider === 'gemini' ? SECRET_GEMINI_KEY : SECRET_OPENAI_KEY;
     if (!apiKey) {
@@ -142,8 +182,8 @@ export default async function handler(req: any, res: any) {
         const content = completion.choices[0].message.content;
         return res.status(200).json(JSON.parse(content || '{}'));
       }
-    } 
-    
+    }
+
     else if (type === 'scorecards') {
       const prompt = `
         Generate fun, debate-worthy scorecards for these ${candidatesData.length} items in a tournament about "${topic}":
@@ -191,7 +231,7 @@ export default async function handler(req: any, res: any) {
     }
 
   } catch (error: any) {
-    console.error("API Route Generation Error:", error);
+
     return res.status(500).json({ error: error.message || 'Failed to generate content' });
   }
 }
