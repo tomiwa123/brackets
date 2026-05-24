@@ -1,6 +1,28 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import type { Candidate } from '../types';
+import { MOCK_MIDFIELDERS, MOCK_SCORECARDS } from './mockData';
+
+const normalizeName = (str: string): string => {
+    return str
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+};
+
+const getMidfielderScorecard = (name: string): Candidate['scorecard'] | null => {
+    const midfielder = MOCK_MIDFIELDERS.find(m => {
+        const n1 = normalizeName(m.name);
+        const n2 = normalizeName(name);
+        return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+    });
+    if (midfielder) {
+        return MOCK_SCORECARDS[midfielder.id] || null;
+    }
+    return null;
+};
+
 
 interface GenerationResponse {
     candidates: Candidate[];
@@ -15,24 +37,13 @@ export const generateWithLLM = async (
     // MOCK DATA INJECTION FOR TESTING
     if (topic === 'dev_test' || topic === 'dev test') {
         await new Promise(resolve => setTimeout(resolve, 800)); // Slight delay for realism
-        const devMock = [
-            { id: "1", name: "Viper", bio: "Agile and deadly, the Viper strikes before you know it.", seed: 1, imageUrl: "https://images.unsplash.com/photo-1533055640609-24b498dfd74c?w=500&auto=format&fit=crop&q=60" },
-            { id: "2", name: "Gecko", bio: "Small but sticky, the Gecko can climb any obstacle.", seed: 16, imageUrl: "https://images.unsplash.com/photo-1595186981180-2ba5763528e1?w=500&auto=format&fit=crop&q=60" },
-            { id: "3", name: "Komodo Dragon", bio: "The king of lizards, with a bite that spells doom.", seed: 2, imageUrl: "https://images.unsplash.com/photo-1520626354676-e137f6a7354f?w=500&auto=format&fit=crop&q=60" },
-            { id: "4", name: "Chameleon", bio: "Master of disguise, blending into any environment.", seed: 15, imageUrl: "https://images.unsplash.com/photo-1582260274151-54b2dcd68c6e?w=500&auto=format&fit=crop&q=60" },
-            { id: "5", name: "Iguana", bio: "Ancient and stoic, a dragon in miniature form.", seed: 3 },
-            { id: "6", name: "Monitor Lizard", bio: "Intelligent and relentless hunter.", seed: 14 },
-            { id: "7", name: "Gila Monster", bio: "Venomous and beautifully patterned desert dweller.", seed: 4 },
-            { id: "8", name: "Bearded Dragon", bio: "Friendly but fierce when threatened.", seed: 13 },
-            { id: "9", name: "Anole", bio: "The backyard warrior, displaying bright colors.", seed: 5 },
-            { id: "10", name: "Skink", bio: "Glossy and quick, slipping through cracks.", seed: 12 },
-            { id: "11", name: "Tegu", bio: "Smart enough to be a pet, strong enough to dominate.", seed: 6 },
-            { id: "12", name: "Basilisk", bio: "The Jesus Lizard, running on water with speed.", seed: 11 },
-            { id: "13", name: "Horned Toad", bio: "Spiky defense and blood-squirting eyes.", seed: 7 },
-            { id: "14", name: "Frilled Neck", bio: "Intimidating display of flaps and fright.", seed: 10 },
-            { id: "15", name: "Blue Tongue", bio: "Deceptive looks with a powerful jaw.", seed: 8 },
-            { id: "16", name: "Thorny Devil", bio: "Covered in spikes, impossible to swallow.", seed: 9 }
-        ];
+        const devMock = MOCK_MIDFIELDERS.map(m => ({
+            id: m.id,
+            name: m.name,
+            bio: m.bio,
+            seed: m.seed,
+            imageUrl: m.imageUrl
+        }));
         return devMock.slice(0, count).map((item, index) => ({
             ...item,
             seed: index + 1
@@ -99,14 +110,17 @@ export const generateScorecard = async (
     // MOCK SCORECARD INJECTION
     if (topic === 'dev_test' || topic === 'dev test') {
         await new Promise(resolve => setTimeout(resolve, 500)); // Faster load
+        const midfielderCard = getMidfielderScorecard(candidateName);
+        if (midfielderCard) return midfielderCard;
+
         return {
-            battleCry: "Victory is written in the scales!",
-            bio: `The ${candidateName} is a formidable opponent in the ${topic} arena. With swift movements and a history of survival in harsh environments, it brings a level of tenacity that few can match. Opponents beware of its hidden strengths and calculated strikes. This is a contender that refuses to back down regardless of the odds stacked against it.`,
+            battleCry: "The pitch is my cathedral!",
+            bio: `The legendary ${candidateName} is an elite contender in the ${topic} arena. With legendary vision, world-class trophies, and a historic career, they bring a level of tactical excellence that few in history can match. Opponents beware of their signature style and unmatched influence on the game.`,
             attributes: [
-                { label: "Strength", value: "Adaptability", sentiment: "positive" },
-                { label: "Weakness", value: "Cold Temps", sentiment: "negative" },
-                { label: "Speed", value: "Blistering", sentiment: "neutral" },
-                { label: "Defense", value: "Scaly Armor", sentiment: "neutral" }
+                { label: "Strength", value: "Elite Vision", sentiment: "positive" },
+                { label: "Weakness", value: "Set Pieces", sentiment: "negative" },
+                { label: "Trophies", value: "WC + UCL", sentiment: "neutral" },
+                { label: "Style", value: "Regista", sentiment: "neutral" }
             ]
         };
     }
@@ -118,7 +132,7 @@ export const generateScorecard = async (
     2. "bio": A compelling 3-4 sentence description that explains why this item is notable in the context of "${topic}". 
        Make it informative, engaging, and relevant to the category.
     3. "attributes": Generate EXACTLY 4 succinct, creative bullet points relevant to "${topic}". 
-       - For example, if topic is "Reptiles", attributes could be "Venom Level", "Aggression", "Diet", "Habitat".
+       - For example, if topic is "Soccer Midfielders", attributes could be "Play Style", "Trophy Count", "Peak Era", "Best Club".
        - If topic is "90s Sitcoms", attributes could be "Best Character", "Laugh Track Usage", "Cultural Impact", "Catchphrase".
        - One attribute MUST be a "Strength" (positive) and one MUST be a "Weakness" (negative).
        - The others can be neutral stats or fun facts.
@@ -181,14 +195,15 @@ export const generateAllScorecards = async (
     if (topic === 'dev_test' || topic === 'dev test') {
         const results: Record<string, Candidate['scorecard']> = {};
         for (const c of candidates) {
-            results[c.id] = {
-                battleCry: "Victory is written in the scales!",
-                bio: `The ${c.name} is a formidable opponent in the ${topic} arena. With swift movements and a history of survival in harsh environments, it brings a level of tenacity that few can match. Opponents beware of its hidden strengths and calculated strikes. This is a contender that refuses to back down regardless of the odds stacked against it.`,
+            const midfielderCard = getMidfielderScorecard(c.name);
+            results[c.id] = midfielderCard || {
+                battleCry: "The pitch is my cathedral!",
+                bio: `The legendary ${c.name} is an elite contender in the ${topic} arena. With legendary vision, world-class trophies, and a historic career, they bring a level of tactical excellence that few in history can match. Opponents beware of their signature style and unmatched influence on the game.`,
                 attributes: [
-                    { label: "Strength", value: "Adaptability", sentiment: "positive" },
-                    { label: "Weakness", value: "Cold Temps", sentiment: "negative" },
-                    { label: "Speed", value: "Blistering", sentiment: "neutral" },
-                    { label: "Defense", value: "Scaly Armor", sentiment: "neutral" }
+                    { label: "Strength", value: "Elite Vision", sentiment: "positive" },
+                    { label: "Weakness", value: "Set Pieces", sentiment: "negative" },
+                    { label: "Trophies", value: "WC + UCL", sentiment: "neutral" },
+                    { label: "Style", value: "Regista", sentiment: "neutral" }
                 ]
             };
         }
@@ -283,7 +298,8 @@ export const generateAllScorecards = async (
         // Generate robust fallback scorecards locally so the app NEVER hangs on loading spinners!
         const results: Record<string, Candidate['scorecard']> = {};
         for (const c of candidates) {
-            results[c.id] = {
+            const midfielderCard = getMidfielderScorecard(c.name);
+            results[c.id] = midfielderCard || {
                 battleCry: `Fear the might of ${c.name}!`,
                 bio: `${c.name} is a legendary contender stepping into the "${topic}" arena. Possessing unparalleled spirit, unique tactical assets, and solid backing from its supporters, it is prepared to conquer all matchups in this tournament bracket.`,
                 attributes: [

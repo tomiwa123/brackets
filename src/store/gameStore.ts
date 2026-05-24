@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { GameState, Match } from '../types';
-import { generateCandidates } from '../services/generator';
+import { generateCandidates, getMockScorecards } from '../services/generator';
 import { generateAllScorecards } from '../services/llm';
 import { getCandidateImage } from '../services/image';
 
@@ -61,6 +61,9 @@ export const useGameStore = create<GameStore>()(
                 const imagePromises = shuffled.map(async (candidate) => {
                     const imageUrl = await getCandidateImage(candidate.name, topic);
 
+                    // If the fetch returned an empty string but the candidate already has a valid image URL, preserve it
+                    if (!imageUrl && candidate.imageUrl) return;
+
                     // Update candidate with image URL immediately
                     const updatedCandidates = get().candidates.map(c =>
                         c.id === candidate.id ? { ...c, imageUrl } : c
@@ -76,29 +79,33 @@ export const useGameStore = create<GameStore>()(
                     set({ candidates: updatedCandidates, matches: updatedMatches });
                 });
 
-                // Fetch ALL scorecards in background
+                // Helper: applies a scorecards map to current candidates + matches in the store.
+                const applyScorecardsToState = (scorecards: Record<string, typeof shuffled[0]['scorecard']>) => {
+                    const updatedCandidates = get().candidates.map(c => ({
+                        ...c,
+                        scorecard: scorecards[c.id],
+                    }));
+                    const updatedMatches = get().matches.map(m => ({
+                        ...m,
+                        player1: { ...m.player1, scorecard: scorecards[m.player1.id] },
+                        player2: { ...m.player2, scorecard: scorecards[m.player2.id] },
+                    }));
+                    set({ candidates: updatedCandidates, matches: updatedMatches });
+                };
+
+                // Fetch / apply ALL scorecards
                 const apiKey = localStorage.getItem('llm_api_key');
                 const provider = (localStorage.getItem('llm_provider') as 'gemini' | 'openai') || 'gemini';
 
                 if (apiKey) {
-                    generateAllScorecards(candidates, topic, provider, apiKey).then((scorecards) => {
-                        const updatedCandidates = get().candidates.map(c => ({
-                            ...c,
-                            scorecard: scorecards[c.id]
-                        }));
-
-                        // Update matches with new scorecard data
-                        const updatedMatches = get().matches.map(m => ({
-                            ...m,
-                            player1: { ...m.player1, scorecard: scorecards[m.player1.id] },
-                            player2: { ...m.player2, scorecard: scorecards[m.player2.id] }
-                        }));
-
-                        set({ candidates: updatedCandidates, matches: updatedMatches });
-                    });
+                    // Tier 1/2: generate via LLM or backend in the background
+                    generateAllScorecards(candidates, topic, provider, apiKey).then(applyScorecardsToState);
+                } else {
+                    // Mock fallback: apply static scorecards synchronously — no spinner
+                    applyScorecardsToState(getMockScorecards(shuffled));
                 }
 
-                // We don't await the entire batch to avoid blocking the UI,
+                // We don't await the entire image batch to avoid blocking the UI,
                 // but the individual updates will happen as they complete.
                 Promise.all(imagePromises);
             },

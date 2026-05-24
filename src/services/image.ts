@@ -26,14 +26,35 @@ export const fetchGoogleImage = async (
     }
 };
 
+import { MOCK_MIDFIELDERS } from './mockData';
+
+const normalizeName = (str: string): string => {
+    return str
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+};
+
 export const getCandidateImage = async (
     name: string,
     topic: string
 ): Promise<string> => {
+    // 0. If candidate is a mock midfielder, return their high-quality Wikimedia Commons photo URL directly
+    const midfielder = MOCK_MIDFIELDERS.find(m => {
+        const n1 = normalizeName(m.name);
+        const n2 = normalizeName(name);
+        return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+    });
+    if (midfielder && midfielder.imageUrl) {
+        return midfielder.imageUrl;
+    }
+
     const googleKey = localStorage.getItem('google_search_key');
     const googleCx = localStorage.getItem('google_search_cx');
 
     const query = `${name} ${topic}`;
+
 
     // 1. BYOK: If user provided their own key, use it directly (bypasses limits)
     if (googleKey && googleCx) {

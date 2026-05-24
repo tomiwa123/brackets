@@ -56,7 +56,7 @@ export const TopicInput: React.FC = () => {
                                 Pick any topic, watch as {bracketSize} contenders battle head-to-head, and crown the champion!
                             </p>
                             <p className="text-slate-400 text-sm italic">
-                                From pizza toppings to superheroes—let the voting begin.
+                                From 90s sitcoms to Premier League legends — let the voting begin.
                             </p>
                         </div>
 
@@ -113,7 +113,7 @@ export const TopicInput: React.FC = () => {
                                         type="text"
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
-                                        placeholder="e.g. 80s Action Movies"
+                                        placeholder="e.g. 90s Hip Hop Artists"
                                         className="w-full px-5 py-3.5 bg-black/50 border-2 border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all text-base font-semibold text-center tracking-wide shadow-[0_0_20px_rgba(0,255,255,0.1)] focus:shadow-[0_0_30px_rgba(0,255,255,0.2)]"
                                         disabled={isLoading}
                                     />

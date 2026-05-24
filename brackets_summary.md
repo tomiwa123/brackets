@@ -4,7 +4,7 @@
 
 **Tournament Brackets** is a vibrant, interactive React web application that allows users to generate and play tournament-style voting games based on any topic. 
 
-When a user enters a topic (e.g., "80s Action Movies" or "Programming Languages"), the application uses AI (Google Gemini or OpenAI) to automatically generate 16 relevant candidates. These candidates are seeded into a classic single-elimination tournament bracket (Round of 16 → Quarterfinals → Semifinals → Finals). Users then vote in head-to-head matchups, exploring detailed AI-generated "scorecards" (bios, battle cries, and fun attributes) for each candidate, until a final champion is crowned.
+When a user enters a topic (e.g., "Greatest Midfielders" or "90s Hip Hop Artists"), the application uses AI (Google Gemini or OpenAI) to automatically generate 16 relevant candidates. These candidates are seeded into a classic single-elimination tournament bracket (Round of 16 → Quarterfinals → Semifinals → Finals). Users then vote in head-to-head matchups, exploring detailed AI-generated "scorecards" (bios, battle cries, and fun attributes) for each candidate, until a final champion is crowned.
 
 The app features a striking "Sunset Arcade" retro aesthetic with neon colors (cyan and yellow) and smooth animations.
 

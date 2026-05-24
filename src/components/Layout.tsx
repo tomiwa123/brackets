@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, RotateCcw, AlertCircle } from 'lucide-react';
 import { useGameStore } from '../store/gameStore';
@@ -11,6 +11,10 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, title, onOpenSettings }) => {
+  // Update the browser tab title when the layout title changes
+  useEffect(() => {
+    document.title = title ? `${title} | Bracket Master` : 'Bracket Master';
+  }, [title]);
     const { phase, resetGame, error, setError } = useGameStore();
 
     return (

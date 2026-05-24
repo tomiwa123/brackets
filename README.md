@@ -16,7 +16,7 @@ A vibrant, interactive parlour game to compare members of a group in a tournamen
 
 ## 🎮 How to Play
 
-1. **Enter a Topic**: Type any category (e.g., "80s Action Movies", "Pizza Toppings", "Programming Languages")
+1. **Enter a Topic**: Type any category (e.g., "Greatest Midfielders", "90s Hip Hop Artists", "Sci-Fi Movies")
 2. **View the Bracket**: See all 16 AI-generated candidates seeded in a tournament bracket
 3. **Vote in Matchups**: Choose your favorite in each head-to-head battle
 4. **Crown a Champion**: Progress through all rounds until one winner remains!
@@ -170,7 +170,7 @@ Settings are stored in browser localStorage:
 ### Customization
 
 - **Theme Colors**: Edit `tailwind.config.js` and component styles
-- **Mock Data**: Modify `MOCK_REPTILES` in `src/services/generator.ts`
+- **Mock Data**: Modify `MOCK_MIDFIELDERS` in `src/services/generator.ts`
 - **Animation Timing**: Adjust Framer Motion variants in components
 
 ## 🤝 Contributing
