@@ -8,14 +8,8 @@ const envPath = path.resolve(__dirname, '..', '.env.local');
 dotenv.config({ path: envPath });
 
 
-  VIP_PASSWORD: process.env.VIP_PASSWORD ?? '⚠️ NOT SET',
-  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL ?? '⚠️ NOT SET',
-  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN ?? '⚠️ NOT SET',
-  SECRET_OPENAI_KEY: process.env.SECRET_OPENAI_KEY ?? '⚠️ NOT SET',
-  SECRET_GEMINI_KEY: process.env.SECRET_GEMINI_KEY ?? '⚠️ NOT SET',
-  SECRET_GOOGLE_SEARCH_KEY: process.env.SECRET_GOOGLE_SEARCH_KEY ?? '⚠️ NOT SET',
-  SECRET_GOOGLE_SEARCH_CX: process.env.SECRET_GOOGLE_SEARCH_CX ?? '⚠️ NOT SET',
-});
+// Removed stray object literal; environment variables are accessed via process.env directly in later const declarations.
+
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
