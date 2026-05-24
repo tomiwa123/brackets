@@ -91,7 +91,7 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
     if (process.env.UPSTASH_REDIS_REST_URL) {
       const currentCount = await redis.get(redisKey) as number | null;
 
-      if (currentCount && currentCount >= limit) {
+      if (type === 'candidates' && currentCount && currentCount >= limit) {
         return res.status(429).json({
           error: isVip
             ? 'VIP pool exhausted for this hour. Please try again later.'

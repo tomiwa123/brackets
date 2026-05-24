@@ -14,6 +14,20 @@ export const BracketView: React.FC = () => {
         return acc;
     }, {} as Record<number, Match[]>);
 
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+                return;
+            }
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                startVoting();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [startVoting]);
+
     return (
         <div className="w-full h-full flex flex-col items-center">
             <div className="w-full overflow-x-auto pb-8 scrollbar-thin scrollbar-thumb-orange-500 scrollbar-track-black">
@@ -105,6 +119,9 @@ export const BracketView: React.FC = () => {
                 <Trophy className="w-8 h-8 text-yellow-200" />
                 {currentRound === 1 && matches.length === ((bracketSize || 16) / 2) ? 'Start Tournament' : 'Continue Tournament'}
                 <ChevronRight className="w-8 h-8" />
+                <span className="ml-4 px-3 py-1 bg-black/70 text-[#00FFFF] border border-[#00FFFF]/60 rounded-lg text-xs font-mono font-black tracking-normal uppercase shadow-[0_0_15px_rgba(0,255,255,0.4)] transform skew-x-6">
+                    Enter
+                </span>
             </motion.button>
         </div>
     );

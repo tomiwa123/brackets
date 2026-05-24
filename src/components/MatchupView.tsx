@@ -3,13 +3,53 @@ import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import type { Candidate } from '../types';
 import { Swords, Loader2 } from 'lucide-react';
+import { soundEngine } from '../services/sound';
 
 export const MatchupView: React.FC = () => {
     const { matches, currentRound, currentMatchIndex, vote, bracketSize } = useGameStore();
+    const [activeVotedSide, setActiveVotedSide] = React.useState<'left' | 'right' | null>(null);
 
     const currentMatch = matches.find(
         m => m.round === currentRound && m.matchIndex === currentMatchIndex
     );
+
+    const handleVote = (winnerId: string, side: 'left' | 'right') => {
+        if (activeVotedSide) return; // Prevent multiple quick presses
+        
+        setActiveVotedSide(side);
+        
+        // Play the retro arcade synthesizer chirp
+        soundEngine.playVoteSound();
+
+        // 180ms delay before transitioning to next matchup to allow the shake & sound to be felt
+        setTimeout(() => {
+            vote(winnerId);
+            setActiveVotedSide(null);
+        }, 180);
+    };
+
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+                return;
+            }
+            if (!currentMatch || activeVotedSide) return;
+
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                e.preventDefault();
+                handleVote(currentMatch.player1.id, 'left');
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                handleVote(currentMatch.player2.id, 'right');
+            } else if (e.key === 'Escape' || e.key === 'b' || e.key === 'B') {
+                e.preventDefault();
+                useGameStore.getState().showBracket();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [currentMatch, activeVotedSide]);
 
     if (!currentMatch) return null;
 
@@ -28,9 +68,13 @@ export const MatchupView: React.FC = () => {
             <div className="w-full flex flex-col md:flex-row md:justify-between items-center gap-4 mb-8 relative z-10 pt-4 px-2">
                 <button
                     onClick={useGameStore.getState().showBracket}
-                    className="text-white/50 hover:text-yellow-400 transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest shrink-0 border border-white/10 hover:border-yellow-400/50 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-yellow-400/10"
+                    className="text-white/50 hover:text-yellow-400 transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest shrink-0 border border-white/10 hover:border-yellow-400/50 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-yellow-400/10 shadow-md cursor-pointer select-none"
                 >
                     <Swords className="w-4 h-4 rotate-90" /> View Bracket
+                    <span className="inline-flex gap-1 items-center ml-2 scale-90 select-none">
+                        <kbd className="px-1.5 py-0.5 bg-black/60 text-yellow-400 border border-yellow-400/30 rounded text-[9px] font-mono font-black shadow-[0_0_5px_rgba(234,179,8,0.2)]">Esc</kbd>
+                        <kbd className="px-1.5 py-0.5 bg-black/60 text-yellow-400 border border-yellow-400/30 rounded text-[9px] font-mono font-black shadow-[0_0_5px_rgba(234,179,8,0.2)]">B</kbd>
+                    </span>
                 </button>
 
                 <div className="flex items-center justify-center gap-4 opacity-80 md:mr-24">
@@ -65,17 +109,19 @@ export const MatchupView: React.FC = () => {
                 {/* Left Candidate */}
                 <CandidateCard
                     candidate={currentMatch.player1}
-                    onVote={() => vote(currentMatch.player1.id)}
+                    onVote={() => handleVote(currentMatch.player1.id, 'left')}
                     side="left"
-                    isWinner={false} // Matchup view doesn't show winner state usually
+                    isWinner={false}
+                    isVoted={activeVotedSide === 'left'}
                 />
 
                 {/* Right Candidate */}
                 <CandidateCard
                     candidate={currentMatch.player2}
-                    onVote={() => vote(currentMatch.player2.id)}
+                    onVote={() => handleVote(currentMatch.player2.id, 'right')}
                     side="right"
                     isWinner={false}
+                    isVoted={activeVotedSide === 'right'}
                 />
             </div>
         </div>
@@ -87,14 +133,20 @@ const CandidateCard: React.FC<{
     onVote: () => void;
     side: 'left' | 'right';
     isWinner?: boolean;
-}> = ({ candidate, onVote, side }) => {
+    isVoted?: boolean;
+}> = ({ candidate, onVote, side, isVoted }) => {
     const isLeft = side === 'left';
     const [imageError, setImageError] = React.useState(false);
 
     return (
         <motion.div
             initial={{ x: isLeft ? -50 : 50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
+            animate={isVoted ? {
+                scale: [1, 1.05, 0.95, 1],
+                rotate: isLeft ? [0, -2, 2, 0] : [0, 2, -2, 0],
+                boxShadow: "0 0 50px rgba(249, 115, 22, 0.8)",
+            } : { x: 0, opacity: 1 }}
+            transition={isVoted ? { duration: 0.18, ease: "easeInOut" } : { duration: 0.5 }}
             className="h-full flex flex-col relative group items-center"
         >
             {/* The Unified Collector Card */}
@@ -204,9 +256,25 @@ const CandidateCard: React.FC<{
                             transition-all duration-100 ease-out
                             min-w-[240px]
                             flex items-center justify-center gap-3
+                            cursor-pointer
                         "
                     >
-                        <span className="drop-shadow-sm">Vote</span>
+                        <span className="drop-shadow-sm flex items-center justify-center gap-3 select-none">
+                            Vote
+                            <span className="inline-flex gap-1 items-center opacity-85 scale-90 shrink-0">
+                                {isLeft ? (
+                                    <>
+                                        <kbd className="px-2 py-0.5 bg-black/60 text-[#00FFFF] border border-[#00FFFF]/50 rounded text-[10px] font-mono font-bold tracking-normal uppercase shadow-[0_0_8px_rgba(0,255,255,0.3)]">A</kbd>
+                                        <kbd className="px-2 py-0.5 bg-black/60 text-[#00FFFF] border border-[#00FFFF]/50 rounded text-[10px] font-mono font-bold tracking-normal uppercase shadow-[0_0_8px_rgba(0,255,255,0.3)]">←</kbd>
+                                    </>
+                                ) : (
+                                    <>
+                                        <kbd className="px-2 py-0.5 bg-black/60 text-[#00FFFF] border border-[#00FFFF]/50 rounded text-[10px] font-mono font-bold tracking-normal uppercase shadow-[0_0_8px_rgba(0,255,255,0.3)]">→</kbd>
+                                        <kbd className="px-2 py-0.5 bg-black/60 text-[#00FFFF] border border-[#00FFFF]/50 rounded text-[10px] font-mono font-bold tracking-normal uppercase shadow-[0_0_8px_rgba(0,255,255,0.3)]">D</kbd>
+                                    </>
+                                )}
+                            </span>
+                        </span>
                     </button>
 
                 </div>

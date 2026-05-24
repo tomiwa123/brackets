@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { GameState, Match } from '../types';
-import { generateCandidates, getMockScorecards } from '../services/generator';
+import { generateCandidates } from '../services/generator';
 import { generateAllScorecards } from '../services/llm';
 import { getCandidateImage } from '../services/image';
 
@@ -93,17 +93,11 @@ export const useGameStore = create<GameStore>()(
                     set({ candidates: updatedCandidates, matches: updatedMatches });
                 };
 
-                // Fetch / apply ALL scorecards
-                const apiKey = localStorage.getItem('llm_api_key');
+                // Fetch / apply ALL scorecards via LLM or secure backend (handles BYOK, VIP, and Global Free Pool)
+                const apiKey = localStorage.getItem('llm_api_key') || '';
                 const provider = (localStorage.getItem('llm_provider') as 'gemini' | 'openai') || 'gemini';
 
-                if (apiKey) {
-                    // Tier 1/2: generate via LLM or backend in the background
-                    generateAllScorecards(candidates, topic, provider, apiKey).then(applyScorecardsToState);
-                } else {
-                    // Mock fallback: apply static scorecards synchronously — no spinner
-                    applyScorecardsToState(getMockScorecards(shuffled));
-                }
+                generateAllScorecards(candidates, topic, provider, apiKey).then(applyScorecardsToState);
 
                 // We don't await the entire image batch to avoid blocking the UI,
                 // but the individual updates will happen as they complete.
