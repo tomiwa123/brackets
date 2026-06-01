@@ -2,20 +2,36 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Loader2, Sparkles } from 'lucide-react';
 import { useGameStore } from '../store/gameStore';
+import { checkTopicAppropriateness } from '../services/moderation';
 
 export const TopicInput: React.FC = () => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { setTopic, generateBracket, bracketSize, setBracketSize } = useGameStore();
+    const { setTopic, generateBracket, bracketSize, setBracketSize, error, setError } = useGameStore();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim()) return;
 
+        // Clear any previous errors
+        setError(null);
+
+        // Client-side local pre-filter validation check
+        const moderation = checkTopicAppropriateness(input);
+        if (!moderation.isValid) {
+            setError("SAFETY_VIOLATION");
+            return;
+        }
+
         setIsLoading(true);
         setTopic(input);
-        await generateBracket();
-        setIsLoading(false);
+        try {
+            await generateBracket();
+        } catch (err) {
+            console.error("Bracket generation failed:", err);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -108,17 +124,39 @@ export const TopicInput: React.FC = () => {
 
                             <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6 items-center">
                                 {/* Input - Constrained width */}
-                                <div className="relative group w-full" style={{ maxWidth: '20rem' }}>
+                                <div className="relative group w-full flex flex-col items-center" style={{ maxWidth: '20rem' }}>
                                     <input
                                         type="text"
                                         value={input}
-                                        onChange={(e) => setInput(e.target.value)}
+                                        onChange={(e) => {
+                                            setInput(e.target.value);
+                                            // Clear safety error when user starts typing a new topic
+                                            if (error === "SAFETY_VIOLATION") {
+                                                setError(null);
+                                            }
+                                        }}
                                         placeholder="e.g. 90s Hip Hop Artists"
                                         className="w-full px-5 py-3.5 bg-black/50 border-2 border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all text-base font-semibold text-center tracking-wide shadow-[0_0_20px_rgba(0,255,255,0.1)] focus:shadow-[0_0_30px_rgba(0,255,255,0.2)]"
                                         disabled={isLoading}
                                     />
                                     <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#00FFFF]/20 to-[#FF00FF]/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                 </div>
+
+                                {error === "SAFETY_VIOLATION" && (
+                                    <motion.div
+                                        initial={{ scale: 0.95, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        className="w-full p-4 border-2 border-red-500/80 bg-red-950/20 rounded-xl text-center shadow-[0_0_20px_rgba(239,68,68,0.3)] border-dashed"
+                                        style={{ maxWidth: '20rem' }}
+                                    >
+                                        <p className="text-red-400 font-black tracking-widest text-[10px] uppercase animate-pulse mb-1">
+                                            🚨 SAFETY SHIELD ACTIVE 🚨
+                                        </p>
+                                        <p className="text-slate-300 text-xs font-semibold leading-relaxed">
+                                            This topic violates our community guidelines. Let's keep it fun and friendly! 🎮
+                                        </p>
+                                    </motion.div>
+                                )}
 
                                 {/* Button */}
                                 <button

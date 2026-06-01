@@ -31,77 +31,91 @@ export const useGameStore = create<GameStore>()(
                 const { topic, bracketSize } = get();
                 if (!topic) return;
 
-                const candidates = await generateCandidates(topic, bracketSize);
+                set({ error: null }); // Clear previous error
 
-                // Shuffle candidates for randomized bracket placement
-                const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+                try {
+                    const candidates = await generateCandidates(topic, bracketSize);
+                    if (!candidates || candidates.length === 0) {
+                        return;
+                    }
 
-                // Create initial matches (Round 1)
-                const matches: Match[] = [];
-                const matchCount = bracketSize / 2;
-                for (let i = 0; i < matchCount; i++) {
-                    matches.push({
-                        id: `r1-m${i}`,
-                        round: 1,
-                        matchIndex: i,
-                        player1: shuffled[i * 2],
-                        player2: shuffled[i * 2 + 1],
+                    // Shuffle candidates for randomized bracket placement
+                    const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+
+                    // Create initial matches (Round 1)
+                    const matches: Match[] = [];
+                    const matchCount = bracketSize / 2;
+                    for (let i = 0; i < matchCount; i++) {
+                        matches.push({
+                            id: `r1-m${i}`,
+                            round: 1,
+                            matchIndex: i,
+                            player1: shuffled[i * 2],
+                            player2: shuffled[i * 2 + 1],
+                        });
+                    }
+
+                    set({
+                        candidates: shuffled,
+                        matches,
+                        currentRound: 1,
+                        currentMatchIndex: 0,
+                        phase: 'bracket',
                     });
+
+                    // Prefetch images in background
+                    const imagePromises = shuffled.map(async (candidate) => {
+                        const imageUrl = await getCandidateImage(candidate.name, topic);
+
+                        // If the fetch returned an empty string but the candidate already has a valid image URL, preserve it
+                        if (!imageUrl && candidate.imageUrl) return;
+
+                        // Update candidate with image URL immediately
+                        const updatedCandidates = get().candidates.map(c =>
+                            c.id === candidate.id ? { ...c, imageUrl } : c
+                        );
+
+                        // Also update any matches containing this candidate
+                        const updatedMatches = get().matches.map(m => ({
+                            ...m,
+                            player1: m.player1.id === candidate.id ? { ...m.player1, imageUrl } : m.player1,
+                            player2: m.player2.id === candidate.id ? { ...m.player2, imageUrl } : m.player2,
+                        }));
+
+                        set({ candidates: updatedCandidates, matches: updatedMatches });
+                    });
+
+                    // Helper: applies a scorecards map to current candidates + matches in the store.
+                    const applyScorecardsToState = (scorecards: Record<string, typeof shuffled[0]['scorecard']>) => {
+                        const updatedCandidates = get().candidates.map(c => ({
+                            ...c,
+                            scorecard: scorecards[c.id],
+                        }));
+                        const updatedMatches = get().matches.map(m => ({
+                            ...m,
+                            player1: { ...m.player1, scorecard: scorecards[m.player1.id] },
+                            player2: { ...m.player2, scorecard: scorecards[m.player2.id] },
+                        }));
+                        set({ candidates: updatedCandidates, matches: updatedMatches });
+                    };
+
+                    // Fetch / apply ALL scorecards via LLM or secure backend (handles BYOK, VIP, and Global Free Pool)
+                    const apiKey = localStorage.getItem('llm_api_key') || '';
+                    const provider = (localStorage.getItem('llm_provider') as 'gemini' | 'openai') || 'gemini';
+
+                    generateAllScorecards(candidates, topic, provider, apiKey).then(applyScorecardsToState);
+
+                    // We don't await the entire image batch to avoid blocking the UI,
+                    // but the individual updates will happen as they complete.
+                    Promise.all(imagePromises);
+                } catch (error: any) {
+                    console.error("Bracket generation aborted:", error);
+                    if (error?.message === "SAFETY_VIOLATION") {
+                        set({ error: "SAFETY_VIOLATION" });
+                    } else {
+                        set({ error: error?.message || "An unexpected error occurred during bracket generation." });
+                    }
                 }
-
-                set({
-                    candidates: shuffled,
-                    matches,
-                    currentRound: 1,
-                    currentMatchIndex: 0,
-                    phase: 'bracket',
-                });
-
-                // Prefetch images in background
-                const imagePromises = shuffled.map(async (candidate) => {
-                    const imageUrl = await getCandidateImage(candidate.name, topic);
-
-                    // If the fetch returned an empty string but the candidate already has a valid image URL, preserve it
-                    if (!imageUrl && candidate.imageUrl) return;
-
-                    // Update candidate with image URL immediately
-                    const updatedCandidates = get().candidates.map(c =>
-                        c.id === candidate.id ? { ...c, imageUrl } : c
-                    );
-
-                    // Also update any matches containing this candidate
-                    const updatedMatches = get().matches.map(m => ({
-                        ...m,
-                        player1: m.player1.id === candidate.id ? { ...m.player1, imageUrl } : m.player1,
-                        player2: m.player2.id === candidate.id ? { ...m.player2, imageUrl } : m.player2,
-                    }));
-
-                    set({ candidates: updatedCandidates, matches: updatedMatches });
-                });
-
-                // Helper: applies a scorecards map to current candidates + matches in the store.
-                const applyScorecardsToState = (scorecards: Record<string, typeof shuffled[0]['scorecard']>) => {
-                    const updatedCandidates = get().candidates.map(c => ({
-                        ...c,
-                        scorecard: scorecards[c.id],
-                    }));
-                    const updatedMatches = get().matches.map(m => ({
-                        ...m,
-                        player1: { ...m.player1, scorecard: scorecards[m.player1.id] },
-                        player2: { ...m.player2, scorecard: scorecards[m.player2.id] },
-                    }));
-                    set({ candidates: updatedCandidates, matches: updatedMatches });
-                };
-
-                // Fetch / apply ALL scorecards via LLM or secure backend (handles BYOK, VIP, and Global Free Pool)
-                const apiKey = localStorage.getItem('llm_api_key') || '';
-                const provider = (localStorage.getItem('llm_provider') as 'gemini' | 'openai') || 'gemini';
-
-                generateAllScorecards(candidates, topic, provider, apiKey).then(applyScorecardsToState);
-
-                // We don't await the entire image batch to avoid blocking the UI,
-                // but the individual updates will happen as they complete.
-                Promise.all(imagePromises);
             },
 
             startVoting: () => {

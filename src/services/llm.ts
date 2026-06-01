@@ -1,7 +1,27 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import OpenAI from 'openai';
 import type { Candidate } from '../types';
 import { MOCK_MIDFIELDERS, MOCK_SCORECARDS } from './mockData';
+
+const SAFETY_SETTINGS = [
+    {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+];
+
 
 const normalizeName = (str: string): string => {
     return str
@@ -70,7 +90,10 @@ export const generateWithLLM = async (
     try {
         if (provider === 'gemini') {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const model = genAI.getGenerativeModel({ 
+                model: "gemini-2.5-flash",
+                safetySettings: SAFETY_SETTINGS
+            });
 
             console.log("Calling Gemini API...");
             const result = await model.generateContent(prompt);
@@ -89,14 +112,27 @@ export const generateWithLLM = async (
                 response_format: { type: "json_object" },
             });
 
+            if (completion.choices[0].finish_reason === 'content_filter') {
+                throw new Error("SAFETY_VIOLATION");
+            }
+
             const content = completion.choices[0].message.content;
             if (!content) throw new Error("No content from OpenAI");
 
             const data = JSON.parse(content) as GenerationResponse;
             return data.candidates;
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("LLM Generation Error:", error);
+        const errMsg = error?.message || error?.toString() || "";
+        if (
+            errMsg.includes("safety") || 
+            errMsg.includes("blocked") || 
+            errMsg.includes("SAFETY_VIOLATION") || 
+            error?.status === 400 && errMsg.includes("content")
+        ) {
+            throw new Error("SAFETY_VIOLATION");
+        }
         throw error;
     }
 };
@@ -152,7 +188,10 @@ export const generateScorecard = async (
     try {
         if (provider === 'gemini') {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const model = genAI.getGenerativeModel({ 
+                model: "gemini-2.5-flash",
+                safetySettings: SAFETY_SETTINGS
+            });
 
             const result = await model.generateContent(prompt);
             const response = await result.response;
@@ -242,7 +281,10 @@ export const generateAllScorecards = async (
 
             if (provider === 'gemini') {
                 const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                const model = genAI.getGenerativeModel({ 
+                    model: "gemini-2.5-flash",
+                    safetySettings: SAFETY_SETTINGS
+                });
                 const result = await model.generateContent(prompt);
                 const text = result.response.text();
                 const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
@@ -260,7 +302,10 @@ export const generateAllScorecards = async (
             }
         } else {
             console.log(`Generating scorecards via Secure Backend`);
-            const response = await fetch('/api/generate', {
+            const apiUrl = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+                ? 'https://brackets-jet.vercel.app/api/generate'
+                : '/api/generate';
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

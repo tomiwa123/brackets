@@ -40,14 +40,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onOpenSettings 
                         exit={{ y: -50, x: '-50%', opacity: 0 }}
                         className="fixed top-6 left-1/2 z-[200] bg-black/90 border-2 border-pink-500 rounded-2xl px-6 py-4 flex items-center gap-4 shadow-[0_0_30px_rgba(255,0,255,0.4)] w-[90%] max-w-lg"
                     >
-                        <AlertCircle className="w-6 h-6 text-pink-500 shrink-0 animate-pulse" />
+                        <AlertCircle className={`w-6 h-6 shrink-0 animate-pulse ${error === 'SAFETY_VIOLATION' ? 'text-red-500' : 'text-pink-500'}`} />
                         <div className="flex-1 text-left">
-                            <h4 className="text-pink-500 font-bold uppercase tracking-wider text-xs">AI Scouting System Notice</h4>
-                            <p className="text-white text-xs font-semibold mt-1 leading-relaxed">{error}</p>
+                            <h4 className={`font-bold uppercase tracking-wider text-xs ${error === 'SAFETY_VIOLATION' ? 'text-red-500' : 'text-pink-500'}`}>
+                                {error === 'SAFETY_VIOLATION' ? '⚠️ Arena Shield Active' : 'AI Scouting System Notice'}
+                            </h4>
+                            <p className="text-white text-xs font-semibold mt-1 leading-relaxed">
+                                {error === 'SAFETY_VIOLATION' 
+                                    ? "This topic contains terms or concepts that violate our safety guidelines. Let's keep it fun and friendly!" 
+                                    : error}
+                            </p>
                         </div>
                         <button 
                             onClick={() => setError(null)} 
-                            className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-pink-500/50 hover:bg-pink-500/10 text-white/60 hover:text-white transition-colors text-xs font-bold uppercase tracking-wider shrink-0"
+                            className={`px-3 py-1.5 rounded-lg border transition-colors text-xs font-bold uppercase tracking-wider shrink-0
+                                ${error === 'SAFETY_VIOLATION' 
+                                    ? 'border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-400 hover:text-red-200' 
+                                    : 'border-white/10 hover:border-pink-500/50 hover:bg-pink-500/10 text-white/60 hover:text-white'}`}
                         >
                             Dismiss
                         </button>

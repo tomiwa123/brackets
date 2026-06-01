@@ -2,10 +2,17 @@ import type { Candidate } from '../types';
 import { generateWithLLM } from './llm';
 import { useGameStore } from '../store/gameStore';
 import { MOCK_MIDFIELDERS } from './mockData';
+import { checkTopicAppropriateness } from './moderation';
 
 export { getMockScorecards } from './mockData';
 
 export const generateCandidates = async (topic: string, count: number = 8): Promise<Candidate[]> => {
+    // 1. Client-Side Local Pre-Filter Check
+    const moderation = checkTopicAppropriateness(topic);
+    if (!moderation.isValid) {
+        throw new Error("SAFETY_VIOLATION");
+    }
+
     const rawKey = localStorage.getItem('llm_api_key') || '';
     const provider = (localStorage.getItem('llm_provider') as 'gemini' | 'openai') || 'gemini';
 
@@ -18,7 +25,10 @@ export const generateCandidates = async (topic: string, count: number = 8): Prom
             return await generateWithLLM(topic, provider, rawKey, count);
         } else {
             console.log(`Generating candidates via Secure Backend (Tier 2/3)`);
-            const response = await fetch('/api/generate', {
+            const apiUrl = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+                ? 'https://brackets-jet.vercel.app/api/generate'
+                : '/api/generate';
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -34,6 +44,9 @@ export const generateCandidates = async (topic: string, count: number = 8): Prom
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
+                if (errData.error === "SAFETY_VIOLATION" || response.status === 422) {
+                    throw new Error("SAFETY_VIOLATION");
+                }
                 throw new Error(errData.error || `HTTP error! status: ${response.status}`);
             }
 
@@ -42,8 +55,14 @@ export const generateCandidates = async (topic: string, count: number = 8): Prom
             return data.candidates;
         }
     } catch (error: any) {
-        console.error("Failed to generate with LLM, falling back to mock.", error);
+        console.error("Failed to generate with LLM.", error);
         const errorMessage = error?.message || "Unknown error";
+        
+        if (errorMessage === "SAFETY_VIOLATION") {
+            // Propagate safety violation up to prevent falling back to mock data
+            throw error;
+        }
+        
         useGameStore.getState().setError(`Scouting generation failed (${errorMessage}). Setting up classic mock contenders!`);
     }
 

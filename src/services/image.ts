@@ -66,7 +66,10 @@ export const getCandidateImage = async (
     // 2. TIER 2/3: Fetch via Secure Backend
     try {
         const vipPassword = localStorage.getItem('llm_api_key') || ''; // The password field
-        const response = await fetch('/api/generate', {
+        const apiUrl = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+            ? 'https://brackets-jet.vercel.app/api/generate'
+            : '/api/generate';
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

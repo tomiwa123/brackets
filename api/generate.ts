@@ -10,8 +10,27 @@ dotenv.config({ path: envPath });
 
 // Removed stray object literal; environment variables are accessed via process.env directly in later const declarations.
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import OpenAI from 'openai';
+
+const SAFETY_SETTINGS = [
+    {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+];
 
 // Initialize Redis client using environment variables
 // Vercel handles passing UPSTASH_REDIS_REST_URL and _REST_TOKEN
@@ -161,7 +180,10 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
 
       if (provider === 'gemini') {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ 
+          model: "gemini-2.5-flash",
+          safetySettings: SAFETY_SETTINGS
+        });
         const result = await model.generateContent(prompt);
         const text = result.response.text();
         const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
@@ -173,6 +195,9 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
           model: "gpt-4o-mini",
           response_format: { type: "json_object" },
         });
+        if (completion.choices[0].finish_reason === 'content_filter') {
+          return res.status(422).json({ error: "SAFETY_VIOLATION" });
+        }
         const content = completion.choices[0].message.content;
         return res.status(200).json(JSON.parse(content || '{}'));
       }
@@ -207,7 +232,10 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
 
       if (provider === 'gemini') {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ 
+          model: "gemini-2.5-flash",
+          safetySettings: SAFETY_SETTINGS
+        });
         const result = await model.generateContent(prompt);
         const text = result.response.text();
         const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
@@ -219,13 +247,24 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
           model: "gpt-4o-mini",
           response_format: { type: "json_object" },
         });
+        if (completion.choices[0].finish_reason === 'content_filter') {
+          return res.status(422).json({ error: "SAFETY_VIOLATION" });
+        }
         const content = completion.choices[0].message.content;
         return res.status(200).json(JSON.parse(content || '{}'));
       }
     }
 
   } catch (error: any) {
-
+    const errMsg = error?.message || error?.toString() || "";
+    if (
+      errMsg.includes("safety") || 
+      errMsg.includes("blocked") || 
+      errMsg.includes("SAFETY_VIOLATION") || 
+      error?.status === 400 && errMsg.includes("content")
+    ) {
+      return res.status(422).json({ error: "SAFETY_VIOLATION" });
+    }
     return res.status(500).json({ error: error.message || 'Failed to generate content' });
   }
 }
