@@ -4,7 +4,11 @@ A vibrant, interactive parlour game to compare members of a group in a tournamen
 
 ## ✨ Features
 
-- **AI-Powered Generation**: Automatically generates 16 relevant candidates for any topic using Google Gemini or OpenAI
+- **AI-Powered Generation**: Automatically generates 16 relevant candidates for any topic using Google Gemini or OpenAI.
+- **BYOK Support (Bring Your Own Key)**: Full support for OpenAI (`sk-`) and Gemini (`AIza`) keys stored securely in your browser's `localStorage`.
+- **Multi-Tiered Orchestration**: Seamlessly switches between direct client-side generation and a secure backend fallback.
+- **Safety/Moderation Layer**: Integrated topic appropriateness checks to ensure high-quality, safe competition.
+- **Robust Fallback System**: Built-in "Classic Mock" contingency ensures the game remains playable even without an active LLM connection.
 - **Tournament-Style Voting**: Classic single-elimination bracket with 16 candidates (Round of 16 → Quarterfinals → Semifinals → Finals)
 - **Rich Candidate Profiles**: Each matchup features AI-generated scorecards with:
   - Battle cries and catchphrases
