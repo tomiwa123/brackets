@@ -189,15 +189,27 @@ Contributions are welcome! Feel free to:
 
 This project is open source and available under the MIT License.
 
-## 🎯 Future Enhancements
+## 🎯 Roadmap & Planned Work
 
-- [ ] Save tournament history
-- [ ] Share results on social media
-- [ ] Custom bracket sizes (8, 32, 64 candidates)
-- [ ] Multiplayer voting mode
-- [ ] Export bracket as image
-- [ ] Sound effects and background music
-- [ ] Dark/light theme toggle
+Based on previous audit recommendations, here is the status of planned work and upcoming features:
+
+### 🟢 Completed Features & Easy Wins
+- [x] **State Hydration / Checkpointing**: App state is preserved in `localStorage` using Zustand middleware, preventing progress loss on accidental refreshes.
+- [x] **Variable Bracket Sizes (8 vs 16)**: Users can select an 8 or 16 candidate bracket to save API credits and speed up gameplay (32 and 64 candidate brackets are intentionally excluded to keep matches concise).
+- [x] **Enhanced Keyboard Accessibility**: Arrow keys can be used to vote and select candidates.
+- [x] **Basic Error Catching & LLM Fallbacks**: Try/catch handlers and fallback models are active, along with local static mock data if LLM keys are missing.
+- [x] **Content Moderation**: Safety layers check topic appropriateness before generating candidates.
+
+### 🟡 High Priority (Up Next)
+- [ ] **Share Results on Social Media**: Enhance the winner screen to support direct sharing of results.
+- [ ] **Mobile-Friendliness & Responsiveness**: Optimize the layout and interactive bracket views specifically for mobile browsers.
+
+### 🔴 Future Enhancements & Nice-to-Haves
+- [ ] **Pre-Tournament Customization (Manual Editing)**: Allow hosts to manually click and edit candidate names before starting the bracket to fix undesired AI generation without burning additional credits.
+- [ ] **Export Bracket as Image**: Download the final bracket visualization.
+- [ ] **Sound Effects & Background Music**: Add immersive retro arcade sounds.
+- [ ] **Save Tournament History**: Database persistence to track past winners.
+- [ ] **Multiplayer Voting Mode**: WebSockets room system for group plays.
 
 ---
 
