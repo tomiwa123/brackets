@@ -16,6 +16,19 @@ export const generateCandidates = async (topic: string, count: number = 8): Prom
     const rawKey = localStorage.getItem('llm_api_key') || '';
     const provider = (localStorage.getItem('llm_provider') as 'gemini' | 'openai') || 'gemini';
 
+    // Intercept dev_test mock topic to run locally without API keys or backend calls
+    if (topic === 'dev_test' || topic === 'dev test') {
+        console.log("Generating mock contenders locally for dev_test");
+        // Update store topic to match the mock category for better UI display and sharing
+        useGameStore.getState().setTopic("All-Time Greatest Soccer Midfielders");
+        // Simulate API delay for realism
+        await new Promise(resolve => setTimeout(resolve, 800));
+        return MOCK_MIDFIELDERS.slice(0, count).map((item, index) => ({
+            ...item,
+            seed: index + 1
+        }));
+    }
+
     // BYOK keys typically start with sk- (OpenAI) or AIza (Gemini)
     const isByok = rawKey.startsWith('sk-') || rawKey.startsWith('AIza');
 

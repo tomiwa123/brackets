@@ -34,9 +34,9 @@ export const WinnerView: React.FC = () => {
         const t = topic || "Championship";
         return `🏆 TOURNAMENT BRACKET CHAMPION 🏆\n` +
             `Topic: "${t}"\n\n` +
-            `🥇 WINNER: ${winner.name} (#${winner.seed} Seed)\n` +
+            `🥇 WINNER: ${winner.name}\n` +
             `"${winner.scorecard?.battleCry || 'The Champion!'}"\n\n` +
-            `🥈 RUNNER-UP: ${runnerUp ? `${runnerUp.name} (#${runnerUp.seed} Seed)` : 'Finalist'}\n\n` +
+            `🥈 RUNNER-UP: ${runnerUp ? runnerUp.name : 'Finalist'}\n\n` +
             `Play your own at: brackets-jet.vercel.app 🎮`;
     };
 
@@ -219,11 +219,57 @@ export const WinnerView: React.FC = () => {
                             </button>
                         )}
 
+                        {/* Direct Social Platform Sharing links */}
+                        <div className="sm:col-span-2 mt-2 pt-4 border-t border-white/10 flex flex-col items-center">
+                            <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-3">
+                                Share Direct to Socials
+                            </p>
+                            <div className="grid grid-cols-3 gap-2 w-full">
+                                {/* X / Twitter */}
+                                <a
+                                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(getShareText())}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="py-3 bg-white/5 hover:bg-[#1DA1F2]/10 border border-white/10 hover:border-[#1DA1F2]/50 text-white hover:text-[#1DA1F2] rounded-xl font-bold uppercase tracking-wider text-[10px] flex items-center justify-center gap-2 transition-colors cursor-pointer select-none"
+                                >
+                                    <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                                    </svg>
+                                    X
+                                </a>
+
+                                {/* WhatsApp */}
+                                <a
+                                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(getShareText())}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="py-3 bg-white/5 hover:bg-[#25D366]/10 border border-white/10 hover:border-[#25D366]/50 text-white hover:text-[#25D366] rounded-xl font-bold uppercase tracking-wider text-[10px] flex items-center justify-center gap-2 transition-colors cursor-pointer select-none"
+                                >
+                                    <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.965C16.59 1.977 14.113.953 11.487.953c-5.43 0-9.85 4.37-9.854 9.799 0 1.838.514 3.633 1.488 5.23L2.17 21.83l6.237-1.636z"/>
+                                    </svg>
+                                    WhatsApp
+                                </a>
+
+                                {/* Reddit */}
+                                <a
+                                    href={`https://www.reddit.com/submit?title=${encodeURIComponent(`${winner.name} wins the ${topic || 'Tournament'}! 🏆`)}&text=${encodeURIComponent(getShareText())}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="py-3 bg-white/5 hover:bg-[#FF4500]/10 border border-white/10 hover:border-[#FF4500]/50 text-white hover:text-[#FF4500] rounded-xl font-bold uppercase tracking-wider text-[10px] flex items-center justify-center gap-2 transition-colors cursor-pointer select-none"
+                                >
+                                    <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                                        <path d="M24 11.5c0-1.65-1.35-3-3-3-.96 0-1.86.48-2.42 1.24-1.64-1-3.85-1.68-6.28-1.78l1.37-4.3 4.47 1c.02.85.73 1.54 1.61 1.54 1.1 0 2-1.1 2-2s-.9-2-2-2c-.76 0-1.42.53-1.61 1.25l-4.93-1.11c-.24-.05-.48.1-.53.35l-1.55 4.88c-2.5.08-4.78.76-6.47 1.78C5.36 8.98 4.46 8.5 3.5 8.5c-1.65 0-3 1.35-3 3 0 1.13.63 2.11 1.56 2.62-.06.41-.09.82-.09 1.24 0 4.14 4.7 7.5 10.5 7.5s10.5-3.36 10.5-7.5c0-.42-.03-.83-.09-1.24.93-.51 1.56-1.49 1.56-2.62zM9 13.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5c0 .83-.67 1.5-1.5 1.5S9 14.33 9 13.5zm9 3.5c-1.8 1.8-5.2 1.8-7 0-.2-.2-.2-.5 0-.7.2-.2.5-.2.7 0 1.4 1.4 4.2 1.4 5.6 0 .2-.2.5-.2.7 0 .2.2.2.5 0 .7zm-.75-2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                                    </svg>
+                                    Reddit
+                                </a>
+                            </div>
+                        </div>
+
                         {/* Reset Game Button */}
                         <button
                             onClick={resetGame}
-                            className={`px-5 py-3.5 bg-gradient-to-r from-yellow-400 to-orange-600 hover:from-yellow-300 hover:to-orange-500 text-white font-black rounded-xl shadow-lg shadow-orange-500/30 uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer select-none
-                                ${canShare ? 'sm:col-span-2' : 'sm:col-span-2'}`}
+                            className="sm:col-span-2 px-5 py-3.5 bg-gradient-to-r from-yellow-400 to-orange-600 hover:from-yellow-300 hover:to-orange-500 text-white font-black rounded-xl shadow-lg shadow-orange-500/30 uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer select-none"
                         >
                             <RotateCcw className="w-4 h-4" />
                             New Tournament

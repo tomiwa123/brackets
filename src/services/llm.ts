@@ -55,7 +55,7 @@ export const generateWithLLM = async (
     count: number = 8
 ): Promise<Candidate[]> => {
     // MOCK DATA INJECTION FOR TESTING
-    if (topic === 'dev_test' || topic === 'dev test') {
+    if (topic === 'dev_test' || topic === 'dev test' || topic === 'All-Time Greatest Soccer Midfielders') {
         await new Promise(resolve => setTimeout(resolve, 800)); // Slight delay for realism
         const devMock = MOCK_MIDFIELDERS.map(m => ({
             id: m.id,
@@ -231,7 +231,7 @@ export const generateAllScorecards = async (
     apiKey: string
 ): Promise<Record<string, Candidate['scorecard']>> => {
     // MOCK BULK GENERATION
-    if (topic === 'dev_test' || topic === 'dev test') {
+    if (topic === 'dev_test' || topic === 'dev test' || topic === 'All-Time Greatest Soccer Midfielders') {
         const results: Record<string, Candidate['scorecard']> = {};
         for (const c of candidates) {
             const midfielderCard = getMidfielderScorecard(c.name);
