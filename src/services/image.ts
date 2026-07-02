@@ -1,3 +1,5 @@
+import { useGameStore } from '../store/gameStore';
+
 export const fetchGoogleImage = async (
     query: string,
     apiKey: string,
@@ -9,8 +11,23 @@ export const fetchGoogleImage = async (
         const response = await fetch(url);
 
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({}));
             console.warn("Google Image Search API Error:", errorData);
+            
+            // Set error in store if not already set
+            const currentError = useGameStore.getState().error;
+            if (!currentError) {
+                const errDetail = errorData.error?.message || '';
+                const errReason = errorData.error?.errors?.[0]?.reason || '';
+                let alertMsg = "Your custom Google Search Key is currently unavailable. Falling back to retro neon grids!";
+                
+                if (response.status === 429 || errDetail.toLowerCase().includes("quota") || errReason.toLowerCase().includes("limitexceeded")) {
+                    alertMsg = "Your custom Google Search Key has exceeded its daily quota limit. Candidates will display retro neon grids!";
+                } else if (response.status === 403 || errReason.toLowerCase().includes("invalid") || errReason.toLowerCase().includes("keyinvalid")) {
+                    alertMsg = "Your custom Google Search Key is invalid or unconfigured. Please check settings!";
+                }
+                useGameStore.getState().setError(alertMsg);
+            }
             return null;
         }
 
@@ -83,6 +100,22 @@ export const getCandidateImage = async (
 
         if (!response.ok) {
             console.warn("Backend Image API exhausted or failed", response.status);
+            // Only set a notice if there isn't one already active
+            const currentError = useGameStore.getState().error;
+            if (!currentError) {
+                const errorData = await response.json().catch(() => ({}));
+                const errText = errorData.error || '';
+                let alertMsg = `Candidate image loading failed (${response.status}). Falling back to retro neon grids!`;
+                
+                if (response.status === 429 || errText.includes("Quota Exceeded")) {
+                    alertMsg = "Server Google Search quota exceeded for this hour. Candidates will display retro neon grids!";
+                } else if (response.status === 500 && errText.includes("API configuration")) {
+                    alertMsg = "Server is missing Google Search API configuration. Candidates will display retro neon grids!";
+                } else if (errText) {
+                    alertMsg = `Server Google Search failed: ${errText}. Candidates will display retro neon grids!`;
+                }
+                useGameStore.getState().setError(alertMsg);
+            }
             return ""; // Fallback to neon grid placeholder
         }
 

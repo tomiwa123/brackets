@@ -154,7 +154,14 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
       const response = await fetch(url);
 
       if (!response.ok) {
-        throw new Error('Google Image Search API Error');
+        const errJson = await response.json().catch(() => ({}));
+        const errDetail = errJson.error?.message || '';
+        const errReason = errJson.error?.errors?.[0]?.reason || '';
+        
+        if (response.status === 429 || errDetail.toLowerCase().includes("quota") || errReason.toLowerCase().includes("limitexceeded")) {
+          return res.status(429).json({ error: 'Google Image Search API Quota Exceeded' });
+        }
+        return res.status(response.status).json({ error: `Google Image Search API Error: ${errDetail || response.statusText}` });
       }
 
       const data = await response.json();
