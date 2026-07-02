@@ -8,7 +8,16 @@ import { soundEngine } from '../services/sound';
 export const MatchupView: React.FC = () => {
     const { matches, currentRound, currentMatchIndex, vote, bracketSize } = useGameStore();
     const [activeVotedSide, setActiveVotedSide] = React.useState<'left' | 'right' | null>(null);
-    const [showDetails, setShowDetails] = React.useState(false);
+    const [showLeftDetails, setShowLeftDetails] = React.useState(false);
+    const [showRightDetails, setShowRightDetails] = React.useState(false);
+    const [isMobile, setIsMobile] = React.useState(false);
+
+    React.useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     const currentMatch = matches.find(
         m => m.round === currentRound && m.matchIndex === currentMatchIndex
@@ -26,8 +35,24 @@ export const MatchupView: React.FC = () => {
         setTimeout(() => {
             vote(winnerId);
             setActiveVotedSide(null);
-            setShowDetails(false); // Reset to collapsed for the next matchup!
+            setShowLeftDetails(false);
+            setShowRightDetails(false); // Reset to collapsed for the next matchup!
         }, 180);
+    };
+
+    const handleToggleDetails = (side: 'left' | 'right') => {
+        if (isMobile) {
+            if (side === 'left') {
+                setShowLeftDetails(prev => !prev);
+            } else {
+                setShowRightDetails(prev => !prev);
+            }
+        } else {
+            // Desktop: toggle both in sync to maintain vertical alignment
+            const targetState = side === 'left' ? !showLeftDetails : !showRightDetails;
+            setShowLeftDetails(targetState);
+            setShowRightDetails(targetState);
+        }
     };
 
     React.useEffect(() => {
@@ -48,7 +73,8 @@ export const MatchupView: React.FC = () => {
                 useGameStore.getState().showBracket();
             } else if (e.key === ' ' || e.key === 'Spacebar') {
                 e.preventDefault();
-                setShowDetails(prev => !prev);
+                setShowLeftDetails(prev => !prev);
+                setShowRightDetails(prev => !prev);
             }
         };
 
@@ -118,8 +144,8 @@ export const MatchupView: React.FC = () => {
                     side="left"
                     isWinner={false}
                     isVoted={activeVotedSide === 'left'}
-                    showDetails={showDetails}
-                    onToggleDetails={() => setShowDetails(prev => !prev)}
+                    showDetails={showLeftDetails}
+                    onToggleDetails={() => handleToggleDetails('left')}
                 />
 
                 {/* Right Candidate */}
@@ -129,8 +155,8 @@ export const MatchupView: React.FC = () => {
                     side="right"
                     isWinner={false}
                     isVoted={activeVotedSide === 'right'}
-                    showDetails={showDetails}
-                    onToggleDetails={() => setShowDetails(prev => !prev)}
+                    showDetails={showRightDetails}
+                    onToggleDetails={() => handleToggleDetails('right')}
                 />
             </div>
         </div>
