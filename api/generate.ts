@@ -39,6 +39,7 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
 });
 
+const SUPER_VIP_PASSWORD = process.env.SUPER_VIP_PASSWORD || 'tahoe26';
 const VIP_PASSWORD = process.env.VIP_PASSWORD || 'secretvip';
 const SECRET_OPENAI_KEY = process.env.SECRET_OPENAI_KEY || '';
 const SECRET_GEMINI_KEY = process.env.SECRET_GEMINI_KEY || '';
@@ -48,6 +49,7 @@ const SECRET_GOOGLE_SEARCH_CX = process.env.SECRET_GOOGLE_SEARCH_CX || '';
 // Rate Limits per Hour
 const GLOBAL_LIMIT = 2; // Strict worldwide limit
 const VIP_LIMIT = 10;   // Strict worldwide limit for friends pool
+const SUPER_VIP_LIMIT = 50; // Super VIP pool limit
 
 
   
@@ -93,10 +95,16 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
 
   // 1. DETERMINE TIER & RATE LIMIT
   let isVip = false;
+  let isSuperVip = false;
   let redisKey = 'global_pool_count';
   let limit = GLOBAL_LIMIT;
 
-  if (providedPassword === VIP_PASSWORD) {
+  if (providedPassword === SUPER_VIP_PASSWORD) {
+    isSuperVip = true;
+    isVip = true;
+    redisKey = 'super_vip_pool_count';
+    limit = SUPER_VIP_LIMIT;
+  } else if (providedPassword === VIP_PASSWORD) {
     isVip = true;
     redisKey = 'vip_pool_count';
     limit = VIP_LIMIT;
@@ -112,7 +120,9 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
 
       if (type === 'candidates' && currentCount && currentCount >= limit) {
         return res.status(429).json({
-          error: isVip
+          error: isSuperVip
+            ? 'Super VIP pool exhausted for this hour. Please try again later.'
+            : isVip
             ? 'VIP pool exhausted for this hour. Please try again later.'
             : 'Global public pool exhausted for this hour (Max 2). Please try again later or enter a valid access key/password in settings.'
         });
