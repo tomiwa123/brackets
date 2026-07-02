@@ -102,10 +102,10 @@ export const MatchupView: React.FC = () => {
             </div>
 
             {/* Main Arena */}
-            <div className="flex-1 grid grid-cols-2 gap-8 md:gap-12 max-w-[1200px] mx-auto w-full relative h-full items-start">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12 max-w-[1200px] mx-auto w-full relative h-full items-start">
 
                 {/* VS Badge (Absolute Center) - Refined */}
-                <div className="absolute left-1/2 top-[200px] -translate-x-1/2 z-20 flex flex-col items-center justify-center pointer-events-none">
+                <div className="absolute left-1/2 top-[200px] -translate-x-1/2 z-20 hidden md:flex flex-col items-center justify-center pointer-events-none">
                     <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border-4 border-slate-800 shadow-2xl relative z-10">
                         <span className="font-black text-white italic text-2xl pr-1">VS</span>
                     </div>
@@ -164,7 +164,7 @@ const CandidateCard: React.FC<{
             <div className="w-full bg-black/40 backdrop-blur-md rounded-3xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-500 flex flex-col shadow-2xl h-full">
 
                 {/* Image Section with Blurred Backdrop (Solution 1A) */}
-                <div className="relative h-[300px] md:h-[350px] shrink-0 w-full bg-slate-950 group-hover:brightness-110 transition-all duration-500 overflow-hidden">
+                <div className="relative h-[200px] sm:h-[300px] md:h-[350px] shrink-0 w-full bg-slate-950 group-hover:brightness-110 transition-all duration-500 overflow-hidden">
                     {candidate.imageUrl && !imageError ? (
                         <>
                             {/* Blurred background image */}
@@ -266,18 +266,20 @@ const CandidateCard: React.FC<{
                                         </div>
 
                                         {/* Attributes - Clean List */}
-                                        <div className="w-full max-w-[400px] space-y-2 bg-white/5 rounded-xl p-4 border border-white/5 mb-4">
-                                            {candidate.scorecard.attributes.map((attr, idx) => (
-                                                <div key={idx} className="flex justify-between items-center border-b border-white/5 last:border-0 pb-1.5 last:pb-0">
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                                                        {attr.label}
-                                                    </span>
-                                                    <span className="text-xs font-bold text-slate-200">
-                                                        {Array.isArray(attr.value) ? attr.value.join(', ') : attr.value}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
+                                        {candidate.scorecard.attributes && candidate.scorecard.attributes.length > 0 && (
+                                            <div className="w-full max-w-[400px] space-y-2 bg-white/5 rounded-xl p-4 border border-white/5 mb-4">
+                                                {candidate.scorecard.attributes.map((attr, idx) => (
+                                                    <div key={idx} className="flex justify-between items-center border-b border-white/5 last:border-0 pb-1.5 last:pb-0">
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                                            {attr.label}
+                                                        </span>
+                                                        <span className="text-xs font-bold text-slate-200">
+                                                            {Array.isArray(attr.value) ? attr.value.join(', ') : attr.value}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -298,7 +300,7 @@ const CandidateCard: React.FC<{
                             active:shadow-[0_0_0_rgb(153,27,27),inset_0_2px_5px_rgba(0,0,0,0.2)]
                             active:translate-y-[4px]
                             transition-all duration-100 ease-out
-                            min-w-[240px]
+                            w-full max-w-[260px] md:min-w-[240px]
                             flex items-center justify-center gap-3
                             cursor-pointer
                         "

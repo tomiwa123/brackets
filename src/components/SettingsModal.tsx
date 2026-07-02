@@ -64,7 +64,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
-                        <div className="flex justify-between items-start px-[4rem] py-8 border-b border-white/5 bg-black/20 shrink-0">
+                        <div className="flex justify-between items-start px-5 sm:px-8 md:px-[4rem] py-6 sm:py-8 border-b border-white/5 bg-black/20 shrink-0">
                             <div>
                                 <h2 className="text-3xl font-black italic text-white uppercase tracking-wider flex items-center gap-3">
                                     <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-transparent bg-clip-text">Game Settings</span>
@@ -81,13 +81,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                         {/* Scrollable Content */}
                         <div className="overflow-y-auto custom-scrollbar flex-1">
-                            <div className="px-[4rem] py-10 space-y-10">
+                            <div className="px-5 sm:px-8 md:px-[4rem] py-6 sm:py-10 space-y-6 sm:space-y-10">
                                 {/* Model Selection */}
                                 <div className="space-y-6">
                                     <label className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
                                         <Bot className="w-4 h-4 text-orange-400" /> AI Provider
                                     </label>
-                                    <div className="grid grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-2 gap-3 sm:gap-6">
                                         <button
                                             onClick={() => setProvider('gemini')}
                                             className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-4 relative overflow-hidden group ${provider === 'gemini'
@@ -180,7 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         </div>
 
                         {/* Footer */}
-                        <div className="px-[4rem] py-7 border-t border-white/5 bg-black/20 flex justify-end shrink-0">
+                        <div className="px-5 sm:px-8 md:px-[4rem] py-5 sm:py-7 border-t border-white/5 bg-black/20 flex justify-end shrink-0">
                             <button
                                 onClick={handleSave}
                                 className="px-10 py-4 bg-white hover:bg-orange-50 text-black font-black uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center gap-3 text-lg"

@@ -71,7 +71,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onOpenSettings 
                     animate={{ x: 0, opacity: 1 }}
                     className="flex items-center gap-2"
                 >
-                    <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-orange-500 to-red-600 drop-shadow-[0_4px_0_rgba(185,28,28,1)] transform -skew-x-12 filter contrast-125 pb-2">
+                    <h1 className="text-3xl sm:text-4xl md:text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-orange-500 to-red-600 drop-shadow-[0_4px_0_rgba(185,28,28,1)] transform -skew-x-12 filter contrast-125 pb-2">
                         <span className="pr-4">{title || 'BRACKET MASTER'}&nbsp;</span>
                     </h1>
                 </motion.div>

@@ -6,6 +6,13 @@ import { Trophy, ChevronRight, Zap } from 'lucide-react';
 
 export const BracketView: React.FC = () => {
     const { matches, currentRound, startVoting, bracketSize } = useGameStore();
+    const [selectedRoundTab, setSelectedRoundTab] = React.useState(currentRound);
+    const [prevRound, setPrevRound] = React.useState(currentRound);
+
+    if (currentRound !== prevRound) {
+        setPrevRound(currentRound);
+        setSelectedRoundTab(currentRound);
+    }
 
     const totalRounds = Math.log2(bracketSize || 16);
     const rounds = Array.from({ length: totalRounds }, (_, i) => i + 1);
@@ -30,8 +37,35 @@ export const BracketView: React.FC = () => {
 
     return (
         <div className="w-full h-full flex flex-col items-center">
+            {/* Mobile Round Selection Tabs */}
+            <div className="flex md:hidden justify-center gap-2 mb-10 w-full max-w-md px-4 shrink-0">
+                {rounds.map((round) => {
+                    const getRoundShortTitle = (r: number, totalR: number) => {
+                        const remainingRounds = totalR - r;
+                        if (remainingRounds === 0) return 'Final';
+                        if (remainingRounds === 1) return 'Semifinals';
+                        if (remainingRounds === 2) return 'Quarterfinals';
+                        return `Round of ${Math.pow(2, remainingRounds + 1)}`;
+                    };
+                    return (
+                        <button
+                            key={round}
+                            type="button"
+                            onClick={() => setSelectedRoundTab(round)}
+                            className={`flex-1 py-2.5 px-2 text-[10px] font-black uppercase tracking-wider rounded-xl border transition-all ${
+                                selectedRoundTab === round
+                                    ? 'bg-[#00FFFF] text-black border-[#00FFFF] shadow-[0_0_15px_rgba(0,255,255,0.4)]'
+                                    : 'bg-black/40 text-slate-400 border-white/10 hover:text-white'
+                            }`}
+                        >
+                            {getRoundShortTitle(round, totalRounds)}
+                        </button>
+                    );
+                })}
+            </div>
+
             <div className="w-full overflow-x-auto pb-8 scrollbar-thin scrollbar-thumb-orange-500 scrollbar-track-black">
-                <div className="min-w-[1200px] flex justify-between px-8 gap-0">
+                <div className="min-w-0 md:min-w-[1200px] w-full md:w-auto flex justify-between px-4 md:px-8 gap-0">
                     {rounds.map((round) => {
                         const roundMatches = matchesByRound[round] || [];
                         const totalMatchesInRound = (bracketSize || 16) / Math.pow(2, round);
@@ -51,7 +85,7 @@ export const BracketView: React.FC = () => {
                         };
 
                         return (
-                            <div key={round} className="flex flex-col justify-center flex-1 relative">
+                            <div key={round} className={`flex-col justify-center flex-1 relative ${round === selectedRoundTab ? 'flex' : 'hidden md:flex'}`}>
                                 <h3 className="absolute -top-16 left-0 right-0 text-center text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-red-500 font-black text-3xl uppercase tracking-widest mb-4 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)] italic transform -skew-x-6">
                                     {getRoundTitle(round, totalRounds)}
                                 </h3>
@@ -64,14 +98,14 @@ export const BracketView: React.FC = () => {
                                         >
                                             {/* Connector Lines */}
                                             {round > 1 && (
-                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/20" />
+                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/20 hidden md:block" />
                                             )}
                                             {round < totalRounds && (
-                                                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/20" />
+                                                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/20 hidden md:block" />
                                             )}
                                             {/* Vertical Connectors for previous round children */}
                                             {round > 1 && (
-                                                <div className="absolute left-0 top-0 bottom-0 w-px bg-white/20 my-auto"
+                                                <div className="absolute left-0 top-0 bottom-0 w-px bg-white/20 my-auto hidden md:block"
                                                     style={{ height: slotHeight / 2 }}
                                                 />
                                             )}
