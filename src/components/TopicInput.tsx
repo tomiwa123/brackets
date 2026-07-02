@@ -50,7 +50,7 @@ export const TopicInput: React.FC = () => {
                     {/* Decorative Top Border */}
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#FFFF00] via-[#00FFFF] to-[#FFFF00] opacity-70" />
 
-                    <div className="relative z-10 px-8 py-8 md:py-10">
+                    <div className="relative z-10 px-4 py-6 sm:px-8 sm:py-8 md:py-10">
                         {/* Icon */}
                         <div className="flex justify-center mb-4">
                             <div className="bg-gradient-to-br from-yellow-400 to-red-600 p-4 rounded-2xl shadow-[0_0_20px_rgba(239,68,68,0.5)] transform -rotate-3 hover:rotate-3 transition-transform duration-300 border-2 border-white/20">
@@ -59,19 +59,19 @@ export const TopicInput: React.FC = () => {
                         </div>
 
                         {/* Heading */}
-                        <h1 className="text-4xl md:text-5xl font-black italic text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#FFFF00] via-orange-500 to-red-500 uppercase tracking-tighter transform -skew-x-6 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black italic text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#FFFF00] via-orange-500 to-red-500 uppercase tracking-tighter transform -skew-x-6 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]">
                             Tournament Brackets
                         </h1>
 
                         {/* Description */}
                         <div className="mb-4 space-y-2 text-center">
-                            <p className="text-slate-300 text-lg leading-relaxed">
+                            <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
                                 Settle the ultimate debates with <span className="text-[#00FFFF] font-bold">AI-powered tournament brackets</span>.
                             </p>
-                            <p className="text-slate-300 text-base leading-relaxed">
+                            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
                                 Pick any topic, watch as {bracketSize} contenders battle head-to-head, and crown the champion!
                             </p>
-                            <p className="text-slate-400 text-sm italic">
+                            <p className="text-slate-400 text-xs sm:text-sm italic">
                                 From 90s sitcoms to Premier League legends — let the voting begin.
                             </p>
                         </div>

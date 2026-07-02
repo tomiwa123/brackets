@@ -114,12 +114,14 @@ export const BracketView: React.FC = () => {
                 whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(249, 115, 22, 0.6)" }}
                 whileTap={{ scale: 0.95 }}
                 onClick={startVoting}
-                className="mt-8 px-12 py-6 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 text-white font-black text-2xl rounded-2xl shadow-lg shadow-orange-500/40 flex items-center gap-3 border-4 border-white/20 uppercase tracking-widest italic transform -skew-x-6 hover:-translate-y-1 transition-all"
+                className="mt-8 px-6 py-4 sm:px-12 sm:py-6 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 text-white font-black text-lg sm:text-2xl rounded-2xl shadow-lg shadow-orange-500/40 flex items-center gap-2 sm:gap-3 border-2 sm:border-4 border-white/20 uppercase tracking-widest italic transform -skew-x-6 hover:-translate-y-1 transition-all"
             >
-                <Trophy className="w-8 h-8 text-yellow-200" />
-                {currentRound === 1 && matches.length === ((bracketSize || 16) / 2) ? 'Start Tournament' : 'Continue Tournament'}
-                <ChevronRight className="w-8 h-8" />
-                <span className="ml-4 px-3 py-1 bg-black/70 text-[#00FFFF] border border-[#00FFFF]/60 rounded-lg text-xs font-mono font-black tracking-normal uppercase shadow-[0_0_15px_rgba(0,255,255,0.4)] transform skew-x-6">
+                <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-200" />
+                <span className="truncate">
+                    {currentRound === 1 && matches.length === ((bracketSize || 16) / 2) ? 'Start Tournament' : 'Continue Tournament'}
+                </span>
+                <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
+                <span className="ml-2 sm:ml-4 px-2 py-0.5 sm:px-3 sm:py-1 bg-black/70 text-[#00FFFF] border border-[#00FFFF]/60 rounded-lg text-xs font-mono font-black tracking-normal uppercase shadow-[0_0_15px_rgba(0,255,255,0.4)] transform skew-x-6 hidden sm:inline-block">
                     Enter
                 </span>
             </motion.button>

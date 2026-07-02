@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import type { Candidate } from '../types';
 import { Swords, Loader2 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { soundEngine } from '../services/sound';
 export const MatchupView: React.FC = () => {
     const { matches, currentRound, currentMatchIndex, vote, bracketSize } = useGameStore();
     const [activeVotedSide, setActiveVotedSide] = React.useState<'left' | 'right' | null>(null);
+    const [showDetails, setShowDetails] = React.useState(false);
 
     const currentMatch = matches.find(
         m => m.round === currentRound && m.matchIndex === currentMatchIndex
@@ -25,6 +26,7 @@ export const MatchupView: React.FC = () => {
         setTimeout(() => {
             vote(winnerId);
             setActiveVotedSide(null);
+            setShowDetails(false); // Reset to collapsed for the next matchup!
         }, 180);
     };
 
@@ -44,6 +46,9 @@ export const MatchupView: React.FC = () => {
             } else if (e.key === 'Escape' || e.key === 'b' || e.key === 'B') {
                 e.preventDefault();
                 useGameStore.getState().showBracket();
+            } else if (e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                setShowDetails(prev => !prev);
             }
         };
 
@@ -71,7 +76,7 @@ export const MatchupView: React.FC = () => {
                     className="text-white/50 hover:text-yellow-400 transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest shrink-0 border border-white/10 hover:border-yellow-400/50 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-yellow-400/10 shadow-md cursor-pointer select-none"
                 >
                     <Swords className="w-4 h-4 rotate-90" /> View Bracket
-                    <span className="inline-flex gap-1 items-center ml-2 scale-90 select-none">
+                    <span className="hidden md:inline-flex gap-1 items-center ml-2 scale-90 select-none">
                         <kbd className="px-1.5 py-0.5 bg-black/60 text-yellow-400 border border-yellow-400/30 rounded text-[9px] font-mono font-black shadow-[0_0_5px_rgba(234,179,8,0.2)]">Esc</kbd>
                         <kbd className="px-1.5 py-0.5 bg-black/60 text-yellow-400 border border-yellow-400/30 rounded text-[9px] font-mono font-black shadow-[0_0_5px_rgba(234,179,8,0.2)]">B</kbd>
                     </span>
@@ -113,6 +118,8 @@ export const MatchupView: React.FC = () => {
                     side="left"
                     isWinner={false}
                     isVoted={activeVotedSide === 'left'}
+                    showDetails={showDetails}
+                    onToggleDetails={() => setShowDetails(prev => !prev)}
                 />
 
                 {/* Right Candidate */}
@@ -122,6 +129,8 @@ export const MatchupView: React.FC = () => {
                     side="right"
                     isWinner={false}
                     isVoted={activeVotedSide === 'right'}
+                    showDetails={showDetails}
+                    onToggleDetails={() => setShowDetails(prev => !prev)}
                 />
             </div>
         </div>
@@ -134,7 +143,9 @@ const CandidateCard: React.FC<{
     side: 'left' | 'right';
     isWinner?: boolean;
     isVoted?: boolean;
-}> = ({ candidate, onVote, side, isVoted }) => {
+    showDetails: boolean;
+    onToggleDetails: () => void;
+}> = ({ candidate, onVote, side, isVoted, showDetails, onToggleDetails }) => {
     const isLeft = side === 'left';
     const [imageError, setImageError] = React.useState(false);
 
@@ -147,20 +158,29 @@ const CandidateCard: React.FC<{
                 boxShadow: "0 0 50px rgba(249, 115, 22, 0.8)",
             } : { x: 0, opacity: 1 }}
             transition={isVoted ? { duration: 0.18, ease: "easeInOut" } : { duration: 0.5 }}
-            className="h-full flex flex-col relative group items-center"
+            className="w-full h-full flex flex-col relative group items-center"
         >
             {/* The Unified Collector Card */}
             <div className="w-full bg-black/40 backdrop-blur-md rounded-3xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-500 flex flex-col shadow-2xl h-full">
 
-                {/* Image Section with Marquee Overlay */}
-                <div className="relative h-[350px] shrink-0 w-full bg-slate-900 group-hover:brightness-110 transition-all duration-500">
+                {/* Image Section with Blurred Backdrop (Solution 1A) */}
+                <div className="relative h-[300px] md:h-[350px] shrink-0 w-full bg-slate-950 group-hover:brightness-110 transition-all duration-500 overflow-hidden">
                     {candidate.imageUrl && !imageError ? (
-                        <img
-                            src={candidate.imageUrl}
-                            alt={candidate.name}
-                            className="w-full h-full object-cover"
-                            onError={() => setImageError(true)}
-                        />
+                        <>
+                            {/* Blurred background image */}
+                            <img
+                                src={candidate.imageUrl}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110 pointer-events-none"
+                            />
+                            {/* Contained front image showing full detail */}
+                            <img
+                                src={candidate.imageUrl}
+                                alt={candidate.name}
+                                className="absolute inset-0 w-full h-full object-contain z-10 p-2"
+                                onError={() => setImageError(true)}
+                            />
+                        </>
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-purple-950/20 to-black p-6 relative overflow-hidden">
                             {/* Neon Grid Backing */}
@@ -184,17 +204,17 @@ const CandidateCard: React.FC<{
                     </div>
 
                     {/* Gradient Overlay for Image Depth */}
-                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent z-10" />
                 </div>
 
                 {/* Content Section */}
-                <div className="flex-1 flex flex-col items-center bg-black/60 p-6 md:p-8 w-full">
+                <div className="flex-1 flex flex-col items-center bg-black/60 p-6 w-full">
                     {/* Name - Huge & Prominent but now in-flow */}
-                    <div className="w-full mb-6">
+                    <div className="w-full mb-3">
                         <h3
                             className="font-black text-white text-center leading-tight uppercase italic tracking-tight drop-shadow-lg"
                             style={{
-                                fontSize: 'clamp(2rem, 4vw, 3.5rem)',
+                                fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
                                 textShadow: '2px 2px 0 rgba(0,0,0,0.5)'
                             }}
                         >
@@ -202,41 +222,65 @@ const CandidateCard: React.FC<{
                         </h3>
                     </div>
 
+                    {/* Toggle Button for Collapsible Scouting Report (Solution 2A) */}
+                    {!candidate.isLoading && candidate.scorecard && (
+                        <button
+                            type="button"
+                            onClick={onToggleDetails}
+                            className="mb-4 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-[#00FFFF]/30 hover:border-[#00FFFF] rounded-full text-[10px] font-black uppercase tracking-widest text-[#00FFFF] transition-all flex items-center gap-1.5 cursor-pointer select-none"
+                        >
+                            {showDetails ? "Hide Scouting Report ▲" : "View Scouting Report ▼"}
+                            <span className="hidden md:inline-block ml-1.5 px-1.5 py-0.5 bg-black/60 text-[#00FFFF] border border-[#00FFFF]/30 rounded text-[8px] font-mono font-black tracking-normal uppercase">
+                                Space
+                            </span>
+                        </button>
+                    )}
+
                     {/* Scorecard Data */}
-                    <div className="w-full flex-1 mb-8">
+                    <div className="w-full flex-1">
                         {candidate.isLoading || !candidate.scorecard ? (
-                            <div className="h-full flex flex-col items-center justify-center text-white/30 gap-3 min-h-[150px]">
+                            <div className="h-full flex flex-col items-center justify-center text-white/30 gap-3 min-h-[80px]">
                                 <Loader2 className="w-6 h-6 animate-spin" />
                                 <p className="text-xs font-bold uppercase tracking-widest">Scouting Report...</p>
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center text-center w-full">
-                                {/* Battle Cry - Subtle Accent */}
-                                <p className="text-cyan-400 font-bold italic tracking-wide mb-6 text-lg">
-                                    "{candidate.scorecard.battleCry}"
-                                </p>
+                            <AnimatePresence initial={false}>
+                                {showDetails && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.25, ease: 'easeInOut' }}
+                                        className="w-full overflow-hidden flex flex-col items-center"
+                                    >
+                                        {/* Battle Cry - Subtle Accent */}
+                                        <p className="text-cyan-400 font-bold italic tracking-wide mb-4 text-base mt-2 text-center px-4">
+                                            "{candidate.scorecard.battleCry}"
+                                        </p>
 
-                                {/* Bio - Constrained Width for Readability (Steve Jobs' 4th suggestion) */}
-                                <div className="max-w-[50ch] mx-auto mb-10">
-                                    <p className="text-slate-300 text-base leading-relaxed font-medium">
-                                        {candidate.scorecard.bio}
-                                    </p>
-                                </div>
-
-                                {/* Attributes - Clean List */}
-                                <div className="w-full max-w-[400px] space-y-3 bg-white/5 rounded-xl p-6 border border-white/5">
-                                    {candidate.scorecard.attributes.map((attr, idx) => (
-                                        <div key={idx} className="flex justify-between items-center border-b border-white/5 last:border-0 pb-2 last:pb-0">
-                                            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                                                {attr.label}
-                                            </span>
-                                            <span className="font-bold text-slate-200">
-                                                {Array.isArray(attr.value) ? attr.value.join(', ') : attr.value}
-                                            </span>
+                                        {/* Bio */}
+                                        <div className="max-w-[45ch] mx-auto mb-6 text-center px-4">
+                                            <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
+                                                {candidate.scorecard.bio}
+                                            </p>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
+
+                                        {/* Attributes - Clean List */}
+                                        <div className="w-full max-w-[400px] space-y-2 bg-white/5 rounded-xl p-4 border border-white/5 mb-4">
+                                            {candidate.scorecard.attributes.map((attr, idx) => (
+                                                <div key={idx} className="flex justify-between items-center border-b border-white/5 last:border-0 pb-1.5 last:pb-0">
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                                        {attr.label}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-200">
+                                                        {Array.isArray(attr.value) ? attr.value.join(', ') : attr.value}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         )}
                     </div>
 
@@ -244,12 +288,12 @@ const CandidateCard: React.FC<{
                     <button
                         onClick={onVote}
                         className="
-                            mt-auto mb-4
+                            mt-4 mb-2
                             group relative overflow-hidden rounded-full
                             bg-gradient-to-b from-orange-500 to-red-600
                             hover:from-orange-400 hover:to-red-500
                             text-white font-black uppercase tracking-[0.2em]
-                            px-12 py-4
+                            px-12 py-3.5
                             shadow-[0_4px_0_rgb(153,27,27),0_15px_20px_-5px_rgba(220,38,38,0.4),inset_0_1px_0_rgba(255,255,255,0.4)]
                             active:shadow-[0_0_0_rgb(153,27,27),inset_0_2px_5px_rgba(0,0,0,0.2)]
                             active:translate-y-[4px]
@@ -259,9 +303,9 @@ const CandidateCard: React.FC<{
                             cursor-pointer
                         "
                     >
-                        <span className="drop-shadow-sm flex items-center justify-center gap-3 select-none">
+                        <span className="drop-shadow-sm flex items-center justify-center gap-3 select-none text-sm">
                             Vote
-                            <span className="inline-flex gap-1 items-center opacity-85 scale-90 shrink-0">
+                            <span className="hidden md:inline-flex gap-1 items-center opacity-85 scale-90 shrink-0">
                                 {isLeft ? (
                                     <>
                                         <kbd className="px-2 py-0.5 bg-black/60 text-[#00FFFF] border border-[#00FFFF]/50 rounded text-[10px] font-mono font-bold tracking-normal uppercase shadow-[0_0_8px_rgba(0,255,255,0.3)]">A</kbd>
