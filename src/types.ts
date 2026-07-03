@@ -29,7 +29,7 @@ export interface Match {
     winner?: Candidate;
 }
 
-export type GamePhase = 'input' | 'bracket' | 'voting' | 'winner';
+export type GamePhase = 'input' | 'bracket' | 'voting' | 'winner' | 'lobby' | 'generating';
 
 export interface GameState {
     topic: string;

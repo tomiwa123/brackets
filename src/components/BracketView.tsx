@@ -1,13 +1,33 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
+import { useMultiplayerStore } from '../store/multiplayerStore';
 import type { Match } from '../types';
-import { Trophy, ChevronRight, Zap } from 'lucide-react';
+import { Trophy, ChevronRight, Zap, Loader2 } from 'lucide-react';
 
 export const BracketView: React.FC = () => {
-    const { matches, currentRound, startVoting, bracketSize } = useGameStore();
+    const { 
+        matches: soloMatches, 
+        currentRound: soloRound, 
+        startVoting: soloStartVoting, 
+        bracketSize: soloBracketSize 
+    } = useGameStore();
+
+    const { 
+        isMultiplayer, 
+        roomData, 
+        isHost, 
+        startVoting: multiStartVoting 
+    } = useMultiplayerStore();
+
+    // Determine parameters based on multiplayer context
+    const isMulti = isMultiplayer && roomData;
+    const matches = isMulti ? roomData.gameState.matches : soloMatches;
+    const currentRound = isMulti ? roomData.gameState.currentRound : soloRound;
+    const bracketSize = isMulti ? roomData.bracketSize : soloBracketSize;
+    const startVoting = isMulti ? multiStartVoting : soloStartVoting;
+
     const [selectedRoundTab, setSelectedRoundTab] = React.useState(currentRound);
-    const [prevRound, setPrevRound] = React.useState(currentRound);
     const [isMobile, setIsMobile] = React.useState(false);
 
     React.useEffect(() => {
@@ -17,10 +37,10 @@ export const BracketView: React.FC = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    if (currentRound !== prevRound) {
-        setPrevRound(currentRound);
+    // Auto-select new round tab when currentRound changes from Firestore
+    React.useEffect(() => {
         setSelectedRoundTab(currentRound);
-    }
+    }, [currentRound]);
 
     const totalRounds = Math.log2(bracketSize || 16);
     const rounds = Array.from({ length: totalRounds }, (_, i) => i + 1);
@@ -36,12 +56,14 @@ export const BracketView: React.FC = () => {
             }
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                startVoting();
+                if (!isMulti || isHost) {
+                    startVoting();
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [startVoting]);
+    }, [startVoting, isMulti, isHost]);
 
     return (
         <div className="w-full h-full flex flex-col items-center">
@@ -79,8 +101,6 @@ export const BracketView: React.FC = () => {
                         const totalMatchesInRound = (bracketSize || 16) / Math.pow(2, round);
                         const placeholdersNeeded = totalMatchesInRound - roundMatches.length;
 
-                        // Calculate height for each slot in this round
-                        // Base height for Round 1 items
                         const BASE_HEIGHT = 100;
                         const slotHeight = BASE_HEIGHT * Math.pow(2, round - 1);
 
@@ -104,14 +124,12 @@ export const BracketView: React.FC = () => {
                                             style={isMobile ? undefined : { height: slotHeight }}
                                             className="w-full flex items-center justify-center px-4 relative"
                                         >
-                                            {/* Connector Lines */}
                                             {round > 1 && (
                                                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/20 hidden md:block" />
                                             )}
                                             {round < totalRounds && (
                                                 <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/20 hidden md:block" />
                                             )}
-                                            {/* Vertical Connectors for previous round children */}
                                             {round > 1 && (
                                                 <div className="absolute left-0 top-0 bottom-0 w-px bg-white/20 my-auto hidden md:block"
                                                     style={{ height: slotHeight / 2 }}
@@ -119,7 +137,7 @@ export const BracketView: React.FC = () => {
                                             )}
 
                                             <div className="w-full z-10">
-                                                <MatchCard match={match} />
+                                                <MatchCard match={match} bracketSize={bracketSize} />
                                             </div>
                                         </div>
                                     ))}
@@ -129,7 +147,6 @@ export const BracketView: React.FC = () => {
                                             style={isMobile ? undefined : { height: slotHeight }}
                                             className="w-full flex items-center justify-center px-4 relative"
                                         >
-                                            {/* Connector Lines for Placeholders */}
                                             {round > 1 && (
                                                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-white/10" />
                                             )}
@@ -141,6 +158,8 @@ export const BracketView: React.FC = () => {
                                                 <PlaceholderMatchCard
                                                     round={round}
                                                     matchIndex={roundMatches.length + i}
+                                                    matches={matches}
+                                                    bracketSize={bracketSize}
                                                 />
                                             </div>
                                         </div>
@@ -152,30 +171,34 @@ export const BracketView: React.FC = () => {
                 </div>
             </div>
 
-            <motion.button
-                whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(249, 115, 22, 0.6)" }}
-                whileTap={{ scale: 0.95 }}
-                onClick={startVoting}
-                className="mt-8 px-6 py-4 sm:px-12 sm:py-6 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 text-white font-black text-lg sm:text-2xl rounded-2xl shadow-lg shadow-orange-500/40 flex items-center gap-2 sm:gap-3 border-2 sm:border-4 border-white/20 uppercase tracking-widest italic transform -skew-x-6 hover:-translate-y-1 transition-all"
-            >
-                <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-200" />
-                <span className="truncate">
-                    {currentRound === 1 && matches.length === ((bracketSize || 16) / 2) ? 'Start Tournament' : 'Continue Tournament'}
-                </span>
-                <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
-                <span className="ml-2 sm:ml-4 px-2 py-0.5 sm:px-3 sm:py-1 bg-black/70 text-[#00FFFF] border border-[#00FFFF]/60 rounded-lg text-xs font-mono font-black tracking-normal uppercase shadow-[0_0_15px_rgba(0,255,255,0.4)] transform skew-x-6 hidden sm:inline-block">
-                    Enter
-                </span>
-            </motion.button>
+            {isMulti && !isHost ? (
+                <div className="mt-8 px-8 py-4 bg-black/60 border-2 border-dashed border-[#00FFFF]/30 rounded-2xl flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 text-[#00FFFF] animate-spin" />
+                    <span className="text-slate-400 font-bold uppercase tracking-wider text-xs">
+                        Waiting for Host to start voting...
+                    </span>
+                </div>
+            ) : (
+                <motion.button
+                    whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(249, 115, 22, 0.6)" }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={startVoting}
+                    className="mt-8 px-6 py-4 sm:px-12 sm:py-6 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 text-white font-black text-lg sm:text-2xl rounded-2xl shadow-lg shadow-orange-500/40 flex items-center gap-2 sm:gap-3 border-2 sm:border-4 border-white/20 uppercase tracking-widest italic transform -skew-x-6 hover:-translate-y-1 transition-all"
+                >
+                    <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-200" />
+                    <span className="truncate">
+                        {currentRound === 1 && matches.length === ((bracketSize || 16) / 2) ? 'Start Tournament' : 'Continue Tournament'}
+                    </span>
+                    <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
+                </motion.button>
+            )}
         </div>
     );
 };
 
-const MatchCard: React.FC<{ match: Match }> = ({ match }) => {
+const MatchCard: React.FC<{ match: Match; bracketSize: number }> = ({ match, bracketSize }) => {
     const isDecided = !!match.winner;
-    const { bracketSize } = useGameStore();
 
-    // Helper to calculate game number dynamically based on size
     const getGameNum = (r: number, idx: number, size: number) => {
         let offset = 0;
         for (let i = 1; i < r; i++) {
@@ -226,10 +249,13 @@ const MatchCard: React.FC<{ match: Match }> = ({ match }) => {
     );
 };
 
-const PlaceholderMatchCard: React.FC<{ round: number; matchIndex: number }> = ({ round, matchIndex }) => {
-    const { matches, bracketSize } = useGameStore();
+const PlaceholderMatchCard: React.FC<{ 
+    round: number; 
+    matchIndex: number; 
+    matches: Match[]; 
+    bracketSize: number; 
+}> = ({ round, matchIndex, matches, bracketSize }) => {
 
-    // Calculate global game number dynamically
     const getGameNum = (r: number, idx: number, size: number) => {
         let offset = 0;
         for (let i = 1; i < r; i++) {
@@ -240,7 +266,6 @@ const PlaceholderMatchCard: React.FC<{ round: number; matchIndex: number }> = ({
 
     const currentGameNum = getGameNum(round, matchIndex, bracketSize || 16);
 
-    // Calculate source game numbers and IDs
     const sourceRound = round - 1;
     const sourceMatch1Index = matchIndex * 2;
     const sourceMatch2Index = matchIndex * 2 + 1;
@@ -248,7 +273,6 @@ const PlaceholderMatchCard: React.FC<{ round: number; matchIndex: number }> = ({
     const sourceGame1 = getGameNum(sourceRound, sourceMatch1Index, bracketSize || 16);
     const sourceGame2 = getGameNum(sourceRound, sourceMatch2Index, bracketSize || 16);
 
-    // Find source matches to check for winners
     const sourceMatch1 = matches.find(m => m.round === sourceRound && m.matchIndex === sourceMatch1Index);
     const sourceMatch2 = matches.find(m => m.round === sourceRound && m.matchIndex === sourceMatch2Index);
 

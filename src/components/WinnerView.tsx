@@ -1,16 +1,26 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
-import { Crown, Download, Copy, Share2, RotateCcw, Check, Loader2 } from 'lucide-react';
+import { useMultiplayerStore } from '../store/multiplayerStore';
+import { Crown, Download, Copy, Share2, RotateCcw, Check, Loader2, Users } from 'lucide-react';
 import { soundEngine } from '../services/sound';
 import { generateChampionCard } from '../services/canvas';
 
 export const WinnerView: React.FC = () => {
-    const { matches, resetGame, bracketSize, topic } = useGameStore();
+    const { matches: soloMatches, resetGame: soloReset, bracketSize: soloBracketSize, topic: soloTopic } = useGameStore();
+    const { isMultiplayer, roomData, resetMultiplayer } = useMultiplayerStore();
+
     const [imageError, setImageError] = React.useState(false);
     const [isGenerating, setIsGenerating] = React.useState(false);
     const [copied, setCopied] = React.useState(false);
     const [canShare, setCanShare] = React.useState(false);
+
+    // Dynamic resolution based on multiplayer or solo
+    const isMulti = isMultiplayer && roomData;
+    const matches = isMulti ? roomData.gameState.matches : soloMatches;
+    const topic = isMulti ? roomData.topic : soloTopic;
+    const bracketSize = isMulti ? roomData.bracketSize : soloBracketSize;
+    const participantCount = isMulti ? roomData.participants.length : 1;
 
     const finalRound = Math.log2(bracketSize || 16);
     const finalMatch = matches.find(m => m.round === finalRound);
@@ -21,7 +31,6 @@ export const WinnerView: React.FC = () => {
         if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
             setCanShare(true);
         }
-        // Play triumphant retro victory theme
         soundEngine.playVictorySound();
     }, []);
 
@@ -29,11 +38,11 @@ export const WinnerView: React.FC = () => {
 
     const runnerUp = finalMatch?.player1.id === winner.id ? finalMatch?.player2 : finalMatch?.player1;
 
-    // Create a beautiful text results tree
     const getShareText = () => {
         const t = topic || "Championship";
+        const voterDetail = isMulti ? ` determined by a lobby of ${participantCount} players!` : "";
         return `🏆 TOURNAMENT BRACKET CHAMPION 🏆\n` +
-            `Topic: "${t}"\n\n` +
+            `Topic: "${t}"${voterDetail}\n\n` +
             `🥇 WINNER: ${winner.name}\n` +
             `"${winner.scorecard?.battleCry || 'The Champion!'}"\n\n` +
             `🥈 RUNNER-UP: ${runnerUp ? runnerUp.name : 'Finalist'}\n\n` +
@@ -77,7 +86,6 @@ export const WinnerView: React.FC = () => {
                 text: getShareText(),
             };
 
-            // Programmatically generate canvas card image to share as a file!
             try {
                 const dataUrl = await generateChampionCard(winner, topic || "Tournament Bracket");
                 const res = await fetch(dataUrl);
@@ -95,13 +103,20 @@ export const WinnerView: React.FC = () => {
                 console.warn('Could not attach image to share, falling back to text only:', err);
             }
 
-            // Text-only fallback for system share sheet
             await navigator.share(shareData);
         } catch (e) {
             console.warn('System share sheet failed, executing smart desktop fallback:', e);
-            // Fallback for desktop/localhost: Copy text to clipboard + Download graphic in one click!
             await handleCopy();
             handleDownload();
+        }
+    };
+
+    const handleReset = () => {
+        if (isMulti) {
+            resetMultiplayer();
+            window.history.pushState({}, '', '/');
+        } else {
+            soloReset();
         }
     };
 
@@ -112,12 +127,10 @@ export const WinnerView: React.FC = () => {
                 animate={{ scale: 1, opacity: 1 }}
                 className="relative w-full max-w-xl"
             >
-                {/* Winner Glow */}
                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 via-orange-500 to-red-600 blur-[80px] opacity-40 animate-pulse" />
 
                 <div className="relative bg-black/90 border-4 border-yellow-400 rounded-3xl p-6 md:p-8 shadow-[0_0_80px_rgba(234,179,8,0.4)] text-center w-full">
                     
-                    {/* Floating Crown Icon */}
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2">
                         <Crown className="w-20 h-20 text-yellow-400 drop-shadow-[0_0_15px_rgba(234,179,8,0.8)] animate-bounce" />
                     </div>
@@ -127,7 +140,7 @@ export const WinnerView: React.FC = () => {
                     </h2>
 
                     {/* Compact Champion Display Box */}
-                    <div className="relative w-48 h-48 md:w-56 md:h-56 mx-auto mb-6 rounded-2xl overflow-hidden border-4 border-white/20 shadow-2xl group">
+                    <div className="relative w-48 h-48 md:w-56 md:h-56 mx-auto mb-4 rounded-2xl overflow-hidden border-4 border-white/20 shadow-2xl group">
                         {winner.imageUrl && !imageError ? (
                             <img
                                 src={winner.imageUrl}
@@ -152,6 +165,14 @@ export const WinnerView: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Multiplayer participant summary indicator */}
+                    {isMulti && (
+                        <div className="flex justify-center items-center gap-1.5 text-xs font-black uppercase tracking-wider text-yellow-400/90 mb-4 bg-yellow-400/5 border border-yellow-400/20 rounded-full py-1.5 px-4 w-fit mx-auto shadow-md">
+                            <Users className="w-4 h-4 text-yellow-400" />
+                            Crowned by {participantCount} Voters
+                        </div>
+                    )}
+
                     {/* Battle Cry & Bio Accents */}
                     {winner.scorecard?.battleCry && (
                         <p className="text-cyan-400 font-bold italic tracking-wide text-sm md:text-base mb-2 max-w-[40ch] mx-auto">
@@ -169,7 +190,6 @@ export const WinnerView: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md mx-auto">
                         {canShare ? (
                             <>
-                                {/* Web Share (if supported) */}
                                 <button
                                     onClick={handleShare}
                                     className="sm:col-span-2 px-5 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black rounded-xl shadow-lg shadow-indigo-500/20 uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer select-none"
@@ -180,12 +200,11 @@ export const WinnerView: React.FC = () => {
                             </>
                         ) : (
                             <>
-                                {/* Copy Text Results */}
                                 <button
                                     onClick={handleCopy}
                                     className={`px-5 py-3.5 rounded-xl font-bold uppercase tracking-wider text-xs transition-all duration-200 flex items-center justify-center gap-2 border cursor-pointer select-none
                                         ${copied 
-                                            ? 'bg-green-500/20 border-green-500/50 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)] text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' 
+                                            ? 'bg-green-500/20 border-green-500/50 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' 
                                             : 'bg-white/5 hover:bg-white/10 text-white border-white/10 hover:border-white/20'}`}
                                 >
                                     {copied ? (
@@ -201,7 +220,6 @@ export const WinnerView: React.FC = () => {
                                     )}
                                 </button>
 
-                                {/* Programmatic Graphic Download */}
                                 <button
                                     onClick={handleDownload}
                                     disabled={isGenerating}
@@ -220,13 +238,11 @@ export const WinnerView: React.FC = () => {
                                     )}
                                 </button>
 
-                                {/* Direct Social Platform Sharing links */}
                                 <div className="sm:col-span-2 mt-2 pt-4 border-t border-white/10 flex flex-col items-center">
                                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-3">
                                         Share Direct to Socials
                                     </p>
                                     <div className="grid grid-cols-2 gap-3 w-full max-w-sm mx-auto">
-                                        {/* X / Twitter */}
                                         <a
                                             href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(getShareText())}`}
                                             target="_blank"
@@ -239,7 +255,6 @@ export const WinnerView: React.FC = () => {
                                             X
                                         </a>
 
-                                        {/* WhatsApp */}
                                         <a
                                             href={`https://api.whatsapp.com/send?text=${encodeURIComponent(getShareText())}`}
                                             target="_blank"
@@ -256,9 +271,8 @@ export const WinnerView: React.FC = () => {
                             </>
                         )}
 
-                        {/* Reset Game Button */}
                         <button
-                            onClick={resetGame}
+                            onClick={handleReset}
                             className="sm:col-span-2 px-5 py-3.5 bg-gradient-to-r from-yellow-400 to-orange-600 hover:from-yellow-300 hover:to-orange-500 text-white font-black rounded-xl shadow-lg shadow-orange-500/30 uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer select-none"
                         >
                             <RotateCcw className="w-4 h-4" />
