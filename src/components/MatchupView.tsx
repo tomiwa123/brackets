@@ -21,7 +21,8 @@ export const MatchupView: React.FC = () => {
         roomData, 
         isHost, 
         submitVote, 
-        advanceMatch 
+        advanceMatch,
+        extendTimer
     } = useMultiplayerStore();
 
     const [activeVotedSide, setActiveVotedSide] = useState<'left' | 'right' | null>(null);
@@ -278,9 +279,20 @@ export const MatchupView: React.FC = () => {
                                     <CheckCircle className="w-4 h-4" /> Voting Finished
                                 </span>
                             ) : (
-                                <span className="flex items-center gap-1.5 text-yellow-400 animate-pulse">
-                                    <Clock className="w-4 h-4" /> {timeLeft}s
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1.5 text-yellow-400 animate-pulse">
+                                        <Clock className="w-4 h-4" /> {timeLeft}s
+                                    </span>
+                                    {isHost && (
+                                        <button
+                                            onClick={() => extendTimer()}
+                                            className="px-2 py-1 bg-yellow-400/20 hover:bg-yellow-400/35 text-yellow-400 hover:text-yellow-300 border border-yellow-400/30 hover:border-yellow-400/50 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer select-none"
+                                            title="Add 30 seconds"
+                                        >
+                                            +30s
+                                        </button>
+                                    )}
+                                </div>
                             )
                         ) : isHost ? (
                             <button

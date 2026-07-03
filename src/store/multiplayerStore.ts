@@ -11,7 +11,8 @@ import {
   closeRoom,
   transferHost,
   updateScorecardsOnly,
-  startVotingInFirestore
+  startVotingInFirestore,
+  extendTimerInFirestore
 } from '../services/firebase';
 import type { RoomData, RoomParticipant } from '../services/firebase';
 import { generateCandidates } from '../services/generator';
@@ -36,6 +37,7 @@ interface MultiplayerStore {
   startVoting: () => Promise<void>;
   submitVote: (candidateId: string) => Promise<void>;
   advanceMatch: () => Promise<void>;
+  extendTimer: () => Promise<void>;
   resetMultiplayer: () => void;
 }
 
@@ -374,6 +376,17 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
       } catch (err: any) {
         console.error("[Store] Error during startVoting:", err);
         set({ error: err.message || "Failed to start voting." });
+      }
+    },
+
+    extendTimer: async () => {
+      const { roomCode, roomData } = get();
+      if (!roomCode || !roomData?.gameState.timerStart) return;
+      try {
+        await extendTimerInFirestore(roomCode, roomData.gameState.timerStart);
+      } catch (err: any) {
+        console.error("[Store] Error during extendTimer:", err);
+        set({ error: err.message || "Failed to extend timer." });
       }
     },
 

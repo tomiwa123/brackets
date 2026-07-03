@@ -232,6 +232,16 @@ export const startVotingInFirestore = async (roomCode: string) => {
 };
 
 /**
+ * Extends the active timer by pushing the timerStart timestamp forward by 30 seconds.
+ */
+export const extendTimerInFirestore = async (roomCode: string, currentTimerStart: number) => {
+  const roomRef = doc(db, 'rooms', roomCode.toUpperCase());
+  await updateDoc(roomRef, {
+    'gameState.timerStart': currentTimerStart + 30000
+  });
+};
+
+/**
  * Initialize tournament components once generated.
  */
 export const initializeRoomTournament = async (
