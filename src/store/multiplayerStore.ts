@@ -10,7 +10,8 @@ import {
   getPlayerId,
   closeRoom,
   transferHost,
-  updateScorecardsOnly
+  updateScorecardsOnly,
+  startVotingInFirestore
 } from '../services/firebase';
 import type { RoomData, RoomParticipant } from '../services/firebase';
 import { generateCandidates } from '../services/generator';
@@ -367,9 +368,9 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
       console.log("[Store] roomCode in startVoting:", roomCode);
       if (!roomCode) return;
       try {
-        console.log("[Store] Attempting to shift room status to 'voting' in DB...");
-        await updateRoomStatus(roomCode, 'voting');
-        console.log("[Store] Shift room status succeeded.");
+        console.log("[Store] Attempting to shift room status to 'voting' and reset timerStart in DB...");
+        await startVotingInFirestore(roomCode);
+        console.log("[Store] startVotingInFirestore succeeded.");
       } catch (err: any) {
         console.error("[Store] Error during startVoting:", err);
         set({ error: err.message || "Failed to start voting." });

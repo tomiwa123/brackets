@@ -220,6 +220,18 @@ export const updateRoomStatus = async (roomCode: string, status: RoomData['statu
 };
 
 /**
+ * Starts voting by shifting status to 'voting', clearing votes, and setting timerStart to now.
+ */
+export const startVotingInFirestore = async (roomCode: string) => {
+  const roomRef = doc(db, 'rooms', roomCode.toUpperCase());
+  await updateDoc(roomRef, {
+    status: 'voting',
+    'gameState.activeMatchVotes': {},
+    'gameState.timerStart': Date.now()
+  });
+};
+
+/**
  * Initialize tournament components once generated.
  */
 export const initializeRoomTournament = async (

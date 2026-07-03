@@ -58,13 +58,21 @@ export const MatchupView: React.FC = () => {
     const participants = isMulti ? roomData.participants : [];
     const autoAdvance = isMulti ? roomData.settings.autoAdvance : false;
     const timerStart = isMulti ? roomData.gameState.timerStart : undefined;
-
     const hasVoted = isMulti && activeVotes[playerId] !== undefined;
     const votedCandidateId = isMulti ? activeVotes[playerId] : null;
+    const votedCount = Object.keys(activeVotes).length;
+    const totalVoters = participants.length;
+    const allVoted = isMulti && totalVoters > 0 && votedCount === totalVoters;
 
     // Timer Effect (Host-side only advances, guest-side just counts down)
     useEffect(() => {
         if (!isMulti || !timerStart) return;
+
+        // If all players have already voted, freeze the countdown
+        if (allVoted) {
+            setTimeLeft(0);
+            return;
+        }
 
         const updateTimer = () => {
             const elapsed = Math.floor((Date.now() - timerStart) / 1000);
@@ -84,7 +92,7 @@ export const MatchupView: React.FC = () => {
         const interval = setInterval(updateTimer, 1000);
         return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isMulti, autoAdvance, timerStart, isHost]);
+    }, [isMulti, autoAdvance, timerStart, isHost, allVoted]);
 
     // Compute which candidate would win given current votes (for reveal preview)
     const computeLeader = () => {
@@ -265,9 +273,15 @@ export const MatchupView: React.FC = () => {
                 {isMulti && (
                     <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest shrink-0">
                         {autoAdvance ? (
-                            <span className="flex items-center gap-1.5 text-yellow-400 animate-pulse">
-                                <Clock className="w-4 h-4" /> {timeLeft}s
-                            </span>
+                            allVoted ? (
+                                <span className="flex items-center gap-1.5 text-green-400">
+                                    <CheckCircle className="w-4 h-4" /> Voting Finished
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1.5 text-yellow-400 animate-pulse">
+                                    <Clock className="w-4 h-4" /> {timeLeft}s
+                                </span>
+                            )
                         ) : isHost ? (
                             <button
                                 onClick={handleManualAdvance}
@@ -276,7 +290,9 @@ export const MatchupView: React.FC = () => {
                                 Advance Match
                             </button>
                         ) : (
-                            <span className="text-slate-400">Host controlled</span>
+                            <span className="text-slate-400">
+                                {allVoted ? "Waiting for Host" : "Host controlled"}
+                            </span>
                         )}
                     </div>
                 )}
@@ -419,9 +435,17 @@ const CandidateCard: React.FC<{
                 boxShadow: "0 0 50px rgba(249, 115, 22, 0.8)",
             } : { x: 0, opacity: 1 }}
             transition={isVoted ? { duration: 0.18, ease: "easeInOut" } : { duration: 0.5 }}
-            className="w-full h-full flex flex-col relative group items-center"
+            className={`w-full h-full flex flex-col relative group items-center transition-all duration-500 ${
+                hasVoted 
+                    ? isVoted 
+                        ? 'opacity-100 scale-[1.01] pointer-events-none' 
+                        : 'opacity-30 filter blur-[0.5px] scale-[0.97] pointer-events-none'
+                    : ''
+            }`}
         >
-            <div className="w-full bg-black/40 backdrop-blur-md rounded-3xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-500 flex flex-col shadow-2xl h-full">
+            <div className={`w-full bg-black/40 backdrop-blur-md rounded-3xl overflow-hidden border transition-all duration-500 flex flex-col shadow-2xl h-full ${
+                hasVoted && isVoted ? 'border-[#FFFF00] shadow-[0_0_30px_rgba(255,255,0,0.2)]' : 'border-white/10 hover:border-white/20'
+            }`}>
 
                 {/* Image Section */}
                 <div className="relative h-[200px] sm:h-[300px] md:h-[350px] shrink-0 w-full bg-slate-950 group-hover:brightness-110 transition-all duration-500 overflow-hidden">
