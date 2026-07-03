@@ -43,8 +43,6 @@ const SUPER_VIP_PASSWORD = process.env.SUPER_VIP_PASSWORD || 'tahoe26';
 const VIP_PASSWORD = process.env.VIP_PASSWORD || 'secretvip';
 const SECRET_OPENAI_KEY = process.env.SECRET_OPENAI_KEY || '';
 const SECRET_GEMINI_KEY = process.env.SECRET_GEMINI_KEY || '';
-const SECRET_GOOGLE_SEARCH_KEY = process.env.SECRET_GOOGLE_SEARCH_KEY || '';
-const SECRET_GOOGLE_SEARCH_CX = process.env.SECRET_GOOGLE_SEARCH_CX || '';
 
 // Rate Limits per Hour
 const GLOBAL_LIMIT = 2; // Strict worldwide limit
@@ -146,11 +144,14 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
   // 4. EXECUTE LOGIC
   try {
     if (type === 'image') {
-      if (!SECRET_GOOGLE_SEARCH_KEY || !SECRET_GOOGLE_SEARCH_CX) {
-        return res.status(500).json({ error: 'Server missing Google Search API configuration.' });
+      const searchKey = process.env.SECRET_GOOGLE_SEARCH_KEY || process.env.GOOGLE_SEARCH_KEY || process.env.GOOGLE_API_KEY || '';
+      const searchCx = process.env.SECRET_GOOGLE_SEARCH_CX || process.env.GOOGLE_SEARCH_CX || process.env.GOOGLE_CX || process.env.GOOGLE_SEARCH_ENGINE_ID || '';
+
+      if (!searchKey || !searchCx) {
+        return res.status(500).json({ error: 'Server missing Google Search API configuration. Please configure SECRET_GOOGLE_SEARCH_KEY and SECRET_GOOGLE_SEARCH_CX (or GOOGLE_SEARCH_KEY and GOOGLE_SEARCH_CX).' });
       }
 
-      const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&cx=${SECRET_GOOGLE_SEARCH_CX}&key=${SECRET_GOOGLE_SEARCH_KEY}&searchType=image&num=1&safe=active`;
+      const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&cx=${searchCx}&key=${searchKey}&searchType=image&num=1&safe=active`;
       const response = await fetch(url);
 
       if (!response.ok) {

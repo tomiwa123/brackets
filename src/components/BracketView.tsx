@@ -8,6 +8,14 @@ export const BracketView: React.FC = () => {
     const { matches, currentRound, startVoting, bracketSize } = useGameStore();
     const [selectedRoundTab, setSelectedRoundTab] = React.useState(currentRound);
     const [prevRound, setPrevRound] = React.useState(currentRound);
+    const [isMobile, setIsMobile] = React.useState(false);
+
+    React.useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     if (currentRound !== prevRound) {
         setPrevRound(currentRound);
@@ -89,11 +97,11 @@ export const BracketView: React.FC = () => {
                                 <h3 className="absolute -top-16 left-0 right-0 text-center text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-red-500 font-black text-3xl uppercase tracking-widest mb-4 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)] italic transform -skew-x-6">
                                     {getRoundTitle(round, totalRounds)}
                                 </h3>
-                                <div className="flex flex-col w-full mt-8">
+                                <div className="flex flex-col w-full mt-8 gap-5 md:gap-0">
                                     {roundMatches.map((match) => (
                                         <div
                                             key={match.id}
-                                            style={{ height: slotHeight }}
+                                            style={isMobile ? undefined : { height: slotHeight }}
                                             className="w-full flex items-center justify-center px-4 relative"
                                         >
                                             {/* Connector Lines */}
@@ -118,7 +126,7 @@ export const BracketView: React.FC = () => {
                                     {Array.from({ length: placeholdersNeeded }).map((_, i) => (
                                         <div
                                             key={`placeholder-${round}-${i}`}
-                                            style={{ height: slotHeight }}
+                                            style={isMobile ? undefined : { height: slotHeight }}
                                             className="w-full flex items-center justify-center px-4 relative"
                                         >
                                             {/* Connector Lines for Placeholders */}
