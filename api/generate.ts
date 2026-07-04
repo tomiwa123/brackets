@@ -222,55 +222,60 @@ if (provider === 'gemini' && (!SECRET_GEMINI_KEY || SECRET_GEMINI_KEY === '')) {
     }
 
     else if (type === 'scorecards') {
-      const prompt = `
-        Generate fun, debate-worthy scorecards for these ${candidatesData.length} items in a tournament about "${topic}":
-        ${candidatesData.map((c: any) => `- ${c.name} (ID: ${c.id})`).join('\n')}
-
-        For EACH item, provide:
-        1. "battleCry": A short, punchy motto (catchphrase style).
-        2. "bio": A compelling 3-4 sentence description that explains why this item is notable in the context of "${topic}". 
-           Make it informative, engaging, and relevant to the category.
-        3. "attributes": Generate EXACTLY 4 succinct, creative bullet points relevant to "${topic}".
-           - One MUST be "Strength" (positive), one "Weakness" (negative).
-           - Others can be neutral/fun.
-           - Keep each value SHORT and punchy (1-3 words ideally).
-
-        Return ONLY a valid JSON object keyed by candidate ID:
-        {
-          "1": {
+      const generateCard = async (c: any) => {
+        const prompt = `
+          Create a fun, debate-worthy scorecard for "${c.name}" in the context of a tournament about "${topic}".
+          
+          1. "battleCry": A short, punchy motto or quote (catchphrase style).
+          2. "bio": A compelling 3-4 sentence description that explains why this item is notable in the context of "${topic}". 
+             Make it informative, engaging, and relevant to the category.
+          3. "attributes": Generate EXACTLY 4 succinct, creative bullet points relevant to "${topic}". 
+             - One attribute MUST be a "Strength" (positive) and one MUST be a "Weakness" (negative).
+             - The others can be neutral stats or fun facts.
+             - Keep each value SHORT and punchy (1-3 words ideally).
+          
+          Return ONLY a valid JSON object with this structure:
+          {
             "battleCry": "...",
             "bio": "3-4 sentences here...",
             "attributes": [
-              { "label": "...", "value": "...", "sentiment": "positive"|"negative"|"neutral" }
+              { "label": "Category Name", "value": "Short value", "sentiment": "positive" | "negative" | "neutral" }
             ]
-          },
-          ...
-        }
-      `;
+          }
+        `;
 
-      if (provider === 'gemini') {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ 
-          model: "gemini-2.5-flash",
-          safetySettings: SAFETY_SETTINGS
-        });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
-        return res.status(200).json(JSON.parse(jsonStr));
-      } else {
-        const openai = new OpenAI({ apiKey });
-        const completion = await openai.chat.completions.create({
-          messages: [{ role: "user", content: prompt }],
-          model: "gpt-4o-mini",
-          response_format: { type: "json_object" },
-        });
-        if (completion.choices[0].finish_reason === 'content_filter') {
-          return res.status(422).json({ error: "SAFETY_VIOLATION" });
+        if (provider === 'gemini') {
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash",
+            safetySettings: SAFETY_SETTINGS
+          });
+          const result = await model.generateContent(prompt);
+          const text = result.response.text();
+          const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
+          return { id: c.id, card: JSON.parse(jsonStr) };
+        } else {
+          const openai = new OpenAI({ apiKey });
+          const completion = await openai.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            model: "gpt-4o-mini",
+            response_format: { type: "json_object" },
+          });
+          if (completion.choices[0].finish_reason === 'content_filter') {
+            throw new Error("SAFETY_VIOLATION");
+          }
+          const content = completion.choices[0].message.content;
+          return { id: c.id, card: JSON.parse(content || '{}') };
         }
-        const content = completion.choices[0].message.content;
-        return res.status(200).json(JSON.parse(content || '{}'));
+      };
+
+      const cardPromises = candidatesData.map((c: any) => generateCard(c));
+      const results = await Promise.all(cardPromises);
+      const scorecards: Record<string, any> = {};
+      for (const resItem of results) {
+        scorecards[resItem.id] = resItem.card;
       }
+      return res.status(200).json(scorecards);
     }
 
   } catch (error: any) {

@@ -253,53 +253,16 @@ export const generateAllScorecards = async (
 
     try {
         if (isByok) {
-            const prompt = `
-            Generate fun, debate-worthy scorecards for these ${candidates.length} items in a tournament about "${topic}":
-            ${candidates.map(c => `- ${c.name} (ID: ${c.id})`).join('\n')}
-
-            For EACH item, provide:
-            1. "battleCry": A short, punchy motto (catchphrase style).
-            2. "bio": A compelling 3-4 sentence description that explains why this item is notable in the context of "${topic}". 
-               Make it informative, engaging, and relevant to the category.
-            3. "attributes": Generate EXACTLY 4 succinct, creative bullet points relevant to "${topic}".
-               - One MUST be "Strength" (positive), one "Weakness" (negative).
-               - Others can be neutral/fun.
-               - Keep each value SHORT and punchy (1-3 words ideally).
-
-            Return ONLY a valid JSON object keyed by candidate ID:
-            {
-              "1": {
-                "battleCry": "...",
-                "bio": "3-4 sentences here...",
-                "attributes": [
-                  { "label": "...", "value": "...", "sentiment": "positive"|"negative"|"neutral" }
-                ]
-              },
-              ...
+            const cardPromises = candidates.map(async (c) => {
+                const card = await generateScorecard(c.name, topic, provider, apiKey);
+                return { id: c.id, card };
+            });
+            const results = await Promise.all(cardPromises);
+            const scorecards: Record<string, Candidate['scorecard']> = {};
+            for (const resItem of results) {
+                scorecards[resItem.id] = resItem.card;
             }
-            `;
-
-            if (provider === 'gemini') {
-                const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ 
-                    model: "gemini-2.5-flash",
-                    safetySettings: SAFETY_SETTINGS
-                });
-                const result = await model.generateContent(prompt);
-                const text = result.response.text();
-                const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
-                return JSON.parse(jsonStr);
-            } else {
-                const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
-                const completion = await openai.chat.completions.create({
-                    messages: [{ role: "user", content: prompt }],
-                    model: "gpt-4o-mini",
-                    response_format: { type: "json_object" },
-                });
-                const content = completion.choices[0].message.content;
-                if (!content) throw new Error("No content");
-                return JSON.parse(content);
-            }
+            return scorecards;
         } else {
             console.log(`Generating scorecards via Secure Backend`);
             const apiUrl = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
