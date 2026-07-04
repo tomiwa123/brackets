@@ -55,16 +55,12 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
     error: null,
 
     createRoom: async (topic, bracketSize, autoAdvance, nickname) => {
-      console.log("[Store] createRoom action started:", { topic, bracketSize, autoAdvance, nickname });
       set({ loading: true, error: null });
       try {
         const roomCode = await createRoomInFirestore(topic, bracketSize, autoAdvance);
-        console.log("[Store] Room document created in DB. Code:", roomCode);
         
         // Automatically join as host
-        console.log("[Store] Joining host to the lobby...");
         await joinRoomInFirestore(roomCode, nickname);
-        console.log("[Store] Host successfully joined.");
 
         set({ 
           isMultiplayer: true, 
@@ -86,11 +82,9 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
     },
 
     joinRoom: async (roomCode, nickname) => {
-      console.log("[Store] joinRoom action started:", { roomCode, nickname });
       set({ loading: true, error: null });
       try {
         await joinRoomInFirestore(roomCode, nickname);
-        console.log("[Store] User successfully joined the room in DB.");
         set({ 
           isMultiplayer: true, 
           roomCode: roomCode.toUpperCase(), 
@@ -157,7 +151,6 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
     },
 
     preGenerateLobbyData: async (roomCode, topic, bracketSize) => {
-      console.log("[Store] Starting background pre-generation for room:", roomCode, "Topic:", topic);
       try {
         const candidates = await generateCandidates(topic, bracketSize);
         if (!candidates || candidates.length === 0) {
@@ -180,7 +173,6 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
 
         // Initialize in Firestore but keep status as 'lobby'
         await initializeRoomTournament(roomCode, shuffled, matches, 'lobby');
-        console.log("[Store] Initial background pre-generation completed and synced.");
 
         // Background: Fetch scorecards
         const apiKey = localStorage.getItem('llm_api_key') || '';
@@ -204,10 +196,8 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
             await initializeRoomTournament(roomCode, updatedCandidates, updatedMatches, 'lobby');
           } else {
             // Tournament already started — only patch scorecard data, don't touch status
-            console.log("[Store] Room already past lobby. Patching scorecards only.");
             await updateScorecardsOnly(roomCode, updatedCandidates, updatedMatches);
           }
-          console.log("[Store] Background scorecards enriched successfully.");
         }).catch(err => {
           console.error("[Store] Background scorecard generation failed:", err);
         });
@@ -218,31 +208,25 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
     },
 
     startTournament: async () => {
-      console.log("[Store] startTournament called.");
       const { roomCode, roomData } = get();
-      console.log("[Store] Current status in startTournament:", { roomCode, roomDataExists: !!roomData });
       if (!roomCode || !roomData) return;
 
       set({ loading: true });
       try {
         const matches = roomData.gameState.matches || [];
         const candidates = roomData.gameState.candidates || [];
-        console.log("[Store] Loaded current candidates and matches:", { candidatesCount: candidates.length, matchesCount: matches.length });
 
         // Check if pre-generation has already finished and is saved in DB
         if (candidates.length > 0 && matches.length > 0) {
-          console.log("[Store] Pre-generated candidates found. Starting tournament instantly by shifting status to 'bracket'...");
           await updateRoomStatus(roomCode, 'bracket');
           set({ loading: false });
           return;
         }
 
         // Fallback: If host clicks start before pre-generation finished
-        console.log("[Store] Pre-generation not ready. Running generation synchronously...");
         await updateRoomStatus(roomCode, 'generating');
 
         const generatedCandidates = await generateCandidates(roomData.topic, roomData.bracketSize as (8 | 16));
-        console.log("[Store] Generated candidates count:", generatedCandidates?.length);
         if (!generatedCandidates || generatedCandidates.length === 0) {
           throw new Error("No candidates generated.");
         }
@@ -261,7 +245,6 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
           });
         }
 
-        console.log("[Store] Initializing room tournament with generated data...");
         await initializeRoomTournament(roomCode, shuffled, initialMatches, 'bracket');
         set({ loading: false });
       } catch (err: any) {
@@ -365,14 +348,10 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
     },
 
     startVoting: async () => {
-      console.log("[Store] startVoting called.");
       const { roomCode } = get();
-      console.log("[Store] roomCode in startVoting:", roomCode);
       if (!roomCode) return;
       try {
-        console.log("[Store] Attempting to shift room status to 'voting' and reset timerStart in DB...");
         await startVotingInFirestore(roomCode);
-        console.log("[Store] startVotingInFirestore succeeded.");
       } catch (err: any) {
         console.error("[Store] Error during startVoting:", err);
         set({ error: err.message || "Failed to start voting." });
@@ -400,13 +379,11 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => {
           if (otherParticipants.length > 0) {
             // Transfer host to next participant
             const nextHost = otherParticipants[0];
-            console.log("[Store] Transferring host to:", nextHost.name);
             transferHost(roomCode, nextHost.id).catch(err => {
               console.error("[Store] Failed to transfer host:", err);
             });
           } else {
             // No other participants — close the room
-            console.log("[Store] No other participants. Closing room.");
             closeRoom(roomCode).catch(err => {
               console.error("[Store] Failed to close room:", err);
             });

@@ -89,7 +89,6 @@ export const createRoomInFirestore = async (
   bracketSize: number, 
   autoAdvance: boolean
 ): Promise<string> => {
-  console.log("[Firebase] Starting createRoomInFirestore...", { topic, bracketSize, autoAdvance, hasFirebaseConfig });
   if (!hasFirebaseConfig) {
     console.error("[Firebase] Missing configuration!");
     throw new Error("FIREBASE_MISSING");
@@ -97,7 +96,6 @@ export const createRoomInFirestore = async (
 
   const roomCode = generateRoomCode();
   const hostId = getPlayerId();
-  console.log("[Firebase] Generated details:", { roomCode, hostId });
 
   const roomRef = doc(db, 'rooms', roomCode);
   const initialRoom: RoomData = {
@@ -121,9 +119,7 @@ export const createRoomInFirestore = async (
   };
 
   try {
-    console.log("[Firebase] Attempting setDoc for room:", roomCode);
     await setDoc(roomRef, initialRoom);
-    console.log("[Firebase] setDoc completed successfully.");
     return roomCode;
   } catch (error) {
     console.error("[Firebase] Error in setDoc:", error);
@@ -135,7 +131,6 @@ export const createRoomInFirestore = async (
  * Joins a guest to an existing room using a transaction to respect the 10-player limit.
  */
 export const joinRoomInFirestore = async (roomCode: string, playerName: string): Promise<void> => {
-  console.log("[Firebase] Starting joinRoomInFirestore...", { roomCode, playerName });
   if (!hasFirebaseConfig) {
     console.error("[Firebase] Missing configuration!");
     throw new Error("FIREBASE_MISSING");
@@ -146,11 +141,8 @@ export const joinRoomInFirestore = async (roomCode: string, playerName: string):
   const roomRef = doc(db, 'rooms', normalizedCode);
 
   try {
-    console.log("[Firebase] Running join transaction for roomRef:", normalizedCode);
     await runTransaction(db, async (transaction) => {
-      console.log("[Firebase] Transaction internal block started.");
       const roomDoc = await transaction.get(roomRef);
-      console.log("[Firebase] Fetched room document inside transaction. Exists:", roomDoc.exists());
       if (!roomDoc.exists()) {
         throw new Error("ROOM_NOT_FOUND");
       }
@@ -164,13 +156,11 @@ export const joinRoomInFirestore = async (roomCode: string, playerName: string):
       }
 
       const alreadyJoined = data.participants.some(p => p.id === playerId);
-      console.log("[Firebase] Player join status:", { alreadyJoined, playerId });
 
       if (alreadyJoined) {
         const updatedParticipants = data.participants.map(p => 
           p.id === playerId ? { ...p, name: playerName } : p
         );
-        console.log("[Firebase] Player already in lobby. Updating name:", playerName);
         transaction.update(roomRef, { participants: updatedParticipants });
         return;
       }
@@ -181,12 +171,10 @@ export const joinRoomInFirestore = async (roomCode: string, playerName: string):
       }
 
       const newParticipant = { id: playerId, name: playerName };
-      console.log("[Firebase] Adding new participant to room array:", newParticipant);
       transaction.update(roomRef, {
         participants: arrayUnion(newParticipant)
       });
     });
-    console.log("[Firebase] Join transaction successfully completed.");
   } catch (error) {
     console.error("[Firebase] Error in join transaction:", error);
     throw error;

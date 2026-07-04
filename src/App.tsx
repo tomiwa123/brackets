@@ -26,10 +26,8 @@ function App() {
   // Keep listener active across all unmounting view components
   useEffect(() => {
     if (isMultiplayer && roomCode) {
-      console.log("[App] Activating global Firestore room listener for:", roomCode);
       const unsubscribe = startListening(roomCode);
       return () => {
-        console.log("[App] Deactivating global Firestore room listener for:", roomCode);
         unsubscribe();
       };
     }
