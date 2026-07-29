@@ -17,10 +17,14 @@ function dailyProgress(records: RecordMap, day: string): number {
   return done / DAILY.length;
 }
 
-/** All P0 daily items done for a given day? */
+/** Streak threshold: a day counts if at least this fraction of P0 items are done. */
+const STREAK_THRESHOLD = 0.7;
+
+/** Enough P0 daily items done for a given day to count toward the streak? */
 function p0Complete(records: RecordMap, day: string): boolean {
   if (DAILY_P0.length === 0) return false;
-  return DAILY_P0.every((i) => records[recordKeyFor(i, day)]?.completed[i.id]);
+  const done = DAILY_P0.filter((i) => records[recordKeyFor(i, day)]?.completed[i.id]).length;
+  return done / DAILY_P0.length >= STREAK_THRESHOLD;
 }
 
 function shiftDay(day: string, delta: number): string {
