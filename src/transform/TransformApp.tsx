@@ -41,10 +41,12 @@ export function TransformApp() {
   const progress = useMemo(() => dailyProgress(records, activeDay), [records, activeDay]);
   const note = records[activeDay]?.note ?? '';
 
-  // Streak: consecutive days ending today with all P0 items complete.
+  // Streak: consecutive days with enough P0 items complete, ending at the most
+  // recent completed day. Today is still in progress, so an unfinished today
+  // must not zero out the streak — start from yesterday until today qualifies.
   const streak = useMemo(() => {
     let count = 0;
-    let cursor = today;
+    let cursor = p0Complete(records, today) ? today : shiftDay(today, -1);
     while (p0Complete(records, cursor)) {
       count += 1;
       cursor = shiftDay(cursor, -1);
