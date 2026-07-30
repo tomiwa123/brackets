@@ -10,11 +10,14 @@ import { DayChecklist } from './DayChecklist';
 const DAILY = PROGRAM.items.filter((i) => i.cadence === 'daily');
 const DAILY_P0 = DAILY.filter((i) => i.priority === 'P0');
 
-/** Fraction (0..1) of daily items checked on a given day. */
+/**
+ * Fraction (0..1) of P0 daily items checked on a given day. Only P0 counts so
+ * this matches the basis used for the streak.
+ */
 function dailyProgress(records: RecordMap, day: string): number {
-  if (DAILY.length === 0) return 0;
-  const done = DAILY.filter((i) => records[recordKeyFor(i, day)]?.completed[i.id]).length;
-  return done / DAILY.length;
+  if (DAILY_P0.length === 0) return 0;
+  const done = DAILY_P0.filter((i) => records[recordKeyFor(i, day)]?.completed[i.id]).length;
+  return done / DAILY_P0.length;
 }
 
 /** Streak threshold: a day counts if at least this fraction of P0 items are done. */
