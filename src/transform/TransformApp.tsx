@@ -90,10 +90,9 @@ export function TransformApp() {
             <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
             <motion.circle
               cx="18" cy="18" r="16" fill="none" stroke="rgb(52,211,153)" strokeWidth="3" strokeLinecap="round"
-              strokeDasharray={100} initial={false}
-              animate={{ strokeDashoffset: 100 - pct }}
+              initial={false}
+              animate={{ pathLength: progress }}
               transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-              pathLength={100}
             />
           </svg>
           <span className="absolute text-sm font-bold">{pct}%</span>
