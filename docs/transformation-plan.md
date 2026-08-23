@@ -4,15 +4,17 @@
 > now (a satisfying, passphrase-guarded daily checklist with history) and the
 > seams that let it grow into the full program without rewrites.
 
-## The MVP (shipped)
+## Current implementation
 
 A private page at **`/transform`** in the existing `brackets` app (reuses the
 Vercel deploy, no new project). It gives you exactly what you asked for:
 
 - **Check a box, feel it.** Springy check animation, strike-through, green fill.
 - **P0 / P1 grouping.** Items are labelled by priority with a one-line intent.
-- **Past days stored.** Every day is its own record; navigate back/forward and
-  edit any day. A per-day note field too.
+- **Past days stored.** Every day is its own era-scoped record, cached locally
+  and synchronized directly to Firestore after the reviewed rules are deployed.
+- **Two honest attempts.** Era 1 is preserved as a read-only archive; Era 2 is
+  a fresh 90-day restart beginning August 23, 2026.
 - **Passphrase gate.** Light client-side lock keeps the page private.
 - **Momentum.** Daily completion ring + a P0-based streak counter, plus
   "Day N of 90" so the 3-month arc is always visible.
@@ -29,9 +31,11 @@ Vercel deploy, no new project). It gives you exactly what you asked for:
 
 ```
 src/transform/
-  program.ts        ← single source of truth: items, priorities, cadences, dates
-  storage.ts        ← persistence seam (localStorage now; Firestore later)
-  store.ts          ← zustand: unlock, active day, toggle, notes
+  program.ts        ← single source of truth: items, priorities, cadences, eras
+  storage.ts        ← versioned local cache + lossless v1 migration/backup
+  eras.ts           ← era dates, ordinal mapping, progress, and streak helpers
+  firestoreSync.ts  ← direct Firestore bootstrap, writes, and live/offline sync
+  store.ts          ← zustand: unlock, era/day selection, toggles, notes, sync
   PassphraseGate.tsx
   DayChecklist.tsx  ← priority-grouped rows + check animation
   TransformApp.tsx  ← header, progress ring, streak, day nav, note
@@ -44,10 +48,14 @@ cadence needs no component changes.
 ### Data model
 
 - **Item** — `{ id, label, priority: P0|P1|P2, cadence: daily|weekly|once, category?, hint? }`
-- **Record** — one per period key: `daily` → `YYYY-MM-DD`, `weekly` → `YYYY-Www`,
-  `once` → a single `milestones` bucket. Shape: `{ key, completed: {itemId:bool}, note?, updatedAt }`.
-- **Store** — `transform:v1:records` in localStorage (versioned key, so future
-  migrations are clean).
+- **Record** — one per era + period key: `daily` → `YYYY-MM-DD`, `weekly` →
+  `YYYY-Www`, `once` → a single `milestones` bucket. Shape:
+  `{ key, completed: {itemId:bool}, note?, updatedAt }`.
+- **Local store** — v1 remains untouched; `transform:v1:backup` and
+  `transform:v2:data` provide migration rollback and a synchronous fallback.
+- **Cloud store** — separate record documents under
+  `transformation/personal/eras/{eraId}/records`, with snapshot listeners and
+  persistent multi-tab offline caching.
 
 ## Extensibility seams (already in place)
 
@@ -56,14 +64,12 @@ cadence needs no component changes.
 | Add/change habits | Edit `program.ts` | UI derives everything from it |
 | Weekly/one-off items | Set `cadence` | Period-keying already handles it |
 | Add a P2 "bonus" tier | Add items with `priority:'P2'` | Renders automatically |
-| Sync across devices | Implement `ProgramStorage` against Firestore, swap `storage` | Interface + Firebase already wired |
+| Add another restart | Add era metadata and reuse the era-scoped record/switching model | Records already include era ownership |
 | Real auth | Replace passphrase gate with Firebase Auth | Gate is isolated in one component |
 | Phases (month 1/2/3) | Add a `phase`/`startDay` field to items, filter by program day | `programDay` already computed |
 
 ## Roadmap (post-MVP, priority-ordered)
 
-- **P2 — Durable sync.** Firestore-backed storage keyed by your uid so history
-  survives a cleared browser and follows you across devices.
 - **P2 — Weekly review view.** Roll daily records into a week grid + trend.
 - **P3 — Phases.** Structure the 90 days into month-long phases with different
   emphases; auto-swap the visible checklist as you progress.

@@ -8,16 +8,20 @@ const PRIORITY_ORDER: Priority[] = ['P0', 'P1', 'P2'];
 function Row({ item }: { item: ChecklistItem }) {
   const isChecked = useTransformStore((s) => s.isChecked(item));
   const toggle = useTransformStore((s) => s.toggle);
+  const readOnly = useTransformStore(
+    (s) => s.recoveryBlocked || s.data.eras[s.selectedEraId]?.status === 'archived',
+  );
 
   return (
     <button
       type="button"
       onClick={() => toggle(item)}
+      disabled={readOnly}
       className={`group flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
         isChecked
           ? 'border-emerald-400/40 bg-emerald-400/[0.07]'
-          : 'border-white/10 bg-white/[0.02] hover:border-white/25'
-      }`}
+          : `border-white/10 bg-white/[0.02] ${readOnly ? '' : 'hover:border-white/25'}`
+      } ${readOnly ? 'cursor-default' : ''}`}
     >
       <motion.span
         animate={isChecked ? { scale: [1, 1.25, 1] } : { scale: 1 }}

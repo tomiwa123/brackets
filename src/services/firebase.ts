@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, 
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   doc, 
   setDoc, 
   updateDoc, 
@@ -20,9 +22,10 @@ export const getPlayerId = (): string => {
 };
 
 // Check if Firebase variables exist
-const hasFirebaseConfig = 
+export const hasFirebaseConfig = Boolean(
   import.meta.env.VITE_FIREBASE_API_KEY &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID;
+  import.meta.env.VITE_FIREBASE_PROJECT_ID
+);
 
 // Fallback warning in console if Firebase config is missing
 if (!hasFirebaseConfig) {
@@ -43,7 +46,9 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
 
 // Generate 4-letter uppercase code
 export const generateRoomCode = (): string => {

@@ -26,10 +26,17 @@ export interface ChecklistItem {
 export interface ProgramConfig {
   title: string;
   subtitle?: string;
-  /** 'YYYY-MM-DD' — day 1 of the program. */
-  startDate: string;
   /** Total length of the program in days (3 months ≈ 90). */
   durationDays: number;
+  activeEraId: string;
+  eras: Array<{
+    id: string;
+    name: string;
+    description: string;
+    startDate: string;
+    status: 'active' | 'archived';
+    retiredOn?: string;
+  }>;
   items: ChecklistItem[];
 }
 
@@ -43,8 +50,25 @@ export const PRIORITY_META: Record<Priority, { label: string; blurb: string }> =
 export const PROGRAM: ProgramConfig = {
   title: '3-Month Transformation',
   subtitle: 'Small boxes, every day. That is the whole game.',
-  startDate: '2026-07-27',
   durationDays: 90,
+  activeEraId: 'era-2',
+  eras: [
+    {
+      id: 'era-1',
+      name: 'Era 1',
+      description: 'First attempt',
+      startDate: '2026-07-27',
+      status: 'archived',
+      retiredOn: '2026-08-22',
+    },
+    {
+      id: 'era-2',
+      name: 'Era 2',
+      description: 'Current attempt',
+      startDate: '2026-08-23',
+      status: 'active',
+    },
+  ],
   items: [
     // ── P0 · Non-negotiables ────────────────────────────────────────────────
     { id: 'p0-hydration', label: 'Hydration', priority: 'P0', cadence: 'daily' },

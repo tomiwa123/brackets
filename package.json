@@ -8,6 +8,9 @@
     "vercel-dev": "vercel dev",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run src/transform",
+    "test:rules:unit": "node test/firestore-rules.mjs",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-brackets \"env -u NODE PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/node test/firestore-rules.mjs\"",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -27,6 +30,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
@@ -41,6 +45,7 @@
     "tailwindcss": "^4.1.17",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.1.11"
   }
 }
