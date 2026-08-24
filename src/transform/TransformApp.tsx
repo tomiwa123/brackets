@@ -1,18 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   Archive,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Cloud,
   CloudOff,
   Download,
   Flame,
   LoaderCircle,
   LogOut,
+  Menu,
 } from 'lucide-react';
 import { PROGRAM } from './program';
 import { useTransformStore } from './store';
@@ -86,10 +85,33 @@ export function TransformApp() {
     recoveryBlocked,
   } = useTransformStore();
   const [eraMenuOpen, setEraMenuOpen] = useState(false);
+  const eraMenuRef = useRef<HTMLDivElement>(null);
+  const eraMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (unlocked) void startSync();
   }, [startSync, unlocked]);
+
+  useEffect(() => {
+    if (!eraMenuOpen) return;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!eraMenuRef.current?.contains(event.target as Node)) setEraMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setEraMenuOpen(false);
+        eraMenuButtonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [eraMenuOpen]);
 
   const era = data.eras[selectedEraId];
   const today = dayStr();
@@ -116,86 +138,112 @@ export function TransformApp() {
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-xl px-5 py-8">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl leading-none" style={{ fontFamily: 'Bangers, system-ui' }}>
             {PROGRAM.title}
           </h1>
           {PROGRAM.subtitle && <p className="mt-1 text-sm text-white/45">{PROGRAM.subtitle}</p>}
         </div>
-        <button
-          onClick={lock}
-          title="Lock"
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/50 hover:text-white/80"
-        >
-          <LogOut size={13} /> Lock
-        </button>
-      </div>
+        <div ref={eraMenuRef} className="relative flex-none">
+          <button
+            ref={eraMenuButtonRef}
+            type="button"
+            onClick={() => setEraMenuOpen((open) => !open)}
+            aria-label={eraMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={eraMenuOpen}
+            aria-controls="transform-menu"
+            className={`flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
+              eraMenuOpen
+                ? 'border-white/20 bg-white/10 text-white'
+                : 'border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.07] hover:text-white'
+            }`}
+          >
+            <Menu size={18} />
+          </button>
 
-      <div className="relative mt-5">
-        <button
-          type="button"
-          onClick={() => setEraMenuOpen((open) => !open)}
-          aria-expanded={eraMenuOpen}
-          className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
-            archived
-              ? 'border-amber-300/20 bg-amber-300/[0.05]'
-              : 'border-emerald-300/20 bg-emerald-300/[0.04]'
-          }`}
-        >
-          <span className="flex items-center gap-2.5">
-            {archived ? <Archive size={15} className="text-amber-300/70" /> : <Cloud size={15} className="text-emerald-300/70" />}
-            <span>
-              <span className="block text-sm font-semibold">
-                {era.name} · {archived ? 'Archived' : 'Current'}
-              </span>
-              <span className="block text-[11px] text-white/35">{era.description} · {formatRange(era)}</span>
-            </span>
-          </span>
-          <ChevronDown size={15} className={`text-white/40 transition-transform ${eraMenuOpen ? 'rotate-180' : ''}`} />
-        </button>
+          {eraMenuOpen && (
+            <div
+              id="transform-menu"
+              aria-label="Transformation menu"
+              className="absolute right-0 z-30 mt-2 max-h-[calc(100vh-6rem)] w-[min(20rem,calc(100vw-2.5rem))] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
+            >
+              <div className="border-b border-white/10 px-4 py-3.5">
+                <div className="text-sm font-semibold">Menu</div>
+                <div className="mt-0.5 text-[11px] text-white/35">
+                  {era.name} · {archived ? 'Viewing archive' : 'Current era'}
+                </div>
+              </div>
 
-        {eraMenuOpen && (
-          <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-white/10 bg-zinc-950 shadow-2xl">
-            {Object.values(data.eras).map((candidate) => {
-              const lastDay = lastRecordedDayNumber(candidate);
-              return (
+              <div className="p-2">
+                <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/30">
+                  Eras
+                </div>
+                {Object.values(data.eras).map((candidate) => {
+                  const lastDay = lastRecordedDayNumber(candidate);
+                  const selected = candidate.id === era.id;
+                  return (
+                    <button
+                      type="button"
+                      aria-pressed={selected}
+                      key={candidate.id}
+                      onClick={() => {
+                        selectEra(candidate.id);
+                        setEraMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] ${
+                        selected ? 'bg-white/[0.05]' : ''
+                      }`}
+                    >
+                      <span
+                        className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg ${
+                          candidate.status === 'active'
+                            ? 'bg-emerald-300/10 text-emerald-300/80'
+                            : 'bg-amber-300/10 text-amber-300/70'
+                        }`}
+                      >
+                        {candidate.status === 'active' ? <Flame size={15} /> : <Archive size={15} />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold">
+                          {candidate.name} · {candidate.status === 'active' ? 'Current' : 'Archived'}
+                        </span>
+                        <span className="block truncate text-[11px] text-white/35">
+                          {formatRange(candidate)}
+                          {candidate.status === 'archived' && lastDay !== null ? ` · last recorded Day ${lastDay}` : ''}
+                        </span>
+                      </span>
+                      {selected && <CheckCircle2 size={15} className="flex-none text-emerald-300/75" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="border-t border-white/10 p-2">
                 <button
                   type="button"
-                  key={candidate.id}
                   onClick={() => {
-                    selectEra(candidate.id);
+                    downloadBackup();
                     setEraMenuOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between px-4 py-3 text-left hover:bg-white/[0.05] ${
-                    candidate.id === era.id ? 'bg-white/[0.04]' : ''
-                  }`}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white/80"
                 >
-                  <span>
-                    <span className="block text-sm font-semibold">
-                      {candidate.name} · {candidate.status === 'active' ? 'Current' : 'Archived'}
-                    </span>
-                    <span className="block text-[11px] text-white/35">
-                      {formatRange(candidate)}
-                      {candidate.status === 'archived' && lastDay !== null ? ` · last recorded Day ${lastDay}` : ''}
-                    </span>
-                  </span>
-                  {candidate.id === era.id && <CheckCircle2 size={14} className="text-emerald-300/70" />}
+                  <Download size={15} /> Download history backup
                 </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => {
-                downloadBackup();
-                setEraMenuOpen(false);
-              }}
-              className="flex w-full items-center gap-2 border-t border-white/10 px-4 py-3 text-xs text-white/45 hover:bg-white/[0.05] hover:text-white/70"
-            >
-              <Download size={13} /> Download untouched history backup
-            </button>
-          </div>
-        )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEraMenuOpen(false);
+                    lock();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white/80"
+                >
+                  <LogOut size={15} /> Lock app
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {(storageWarning || migrationNotice) && (
@@ -231,7 +279,7 @@ export function TransformApp() {
         </div>
         <div className="flex-1">
           <div className="text-xs uppercase tracking-widest text-white/40">
-            {era.name} · Day {programDay} of {era.durationDays}
+            {archived ? 'Archive · ' : ''}Day {programDay} of {era.durationDays}
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-amber-300">
             <Flame size={15} /> {streak} day{streak === 1 ? '' : 's'} streak
@@ -257,7 +305,7 @@ export function TransformApp() {
           )}
           {archived && (
             <button onClick={() => selectEra(data.activeEraId)} className="text-[11px] text-emerald-300 hover:underline">
-              back to Era 2
+              back to current
             </button>
           )}
         </div>
@@ -298,9 +346,7 @@ export function TransformApp() {
       </div>
 
       <SyncLabel />
-      <p className="mt-2 text-center text-[10px] text-white/20">
-        Firestore sync with a versioned local backup. Era 1 remains untouched and read-only.
-      </p>
+      <p className="mt-2 text-center text-[10px] text-white/20">Firestore sync with a versioned local backup.</p>
     </div>
   );
 }
