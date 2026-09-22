@@ -76,7 +76,7 @@ export const PROGRAM: ProgramConfig = {
     { id: 'p0-bible', label: 'Bible reading', priority: 'P0', cadence: 'daily' },
     { id: 'p0-skincare', label: 'Skincare routine', priority: 'P0', cadence: 'daily' },
     { id: 'p0-french', label: 'French practice', priority: 'P0', cadence: 'daily' },
-    { id: 'p0-journal', label: '1 page journalling', priority: 'P0', cadence: 'daily' },
+    { id: 'p0-journal', label: 'journalling/call tribe', priority: 'P0', cadence: 'daily' },
     { id: 'p0-reading', label: '15 pages reading', priority: 'P0', cadence: 'daily' },
     { id: 'p0-pushups', label: '100 pushups', priority: 'P0', cadence: 'daily' },
     { id: 'p0-adventure', label: '1 Adventure', priority: 'P0', cadence: 'daily' },
