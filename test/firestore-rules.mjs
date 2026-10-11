@@ -136,7 +136,7 @@ try {
   await assertSucceeds(setDoc(spellingReference, spellingRoom));
   await assertSucceeds(getDoc(spellingReference));
   await assertSucceeds(setDoc(spellingReference, { ...spellingRoom, revision: 1, updatedAt: 2 }));
-  const playersAtCapacity = Array.from({ length: 15 }, (_, index) => ({
+  const playersAtCapacity = Array.from({ length: 20 }, (_, index) => ({
     id: `player-${index + 1}`,
     name: `Player ${index + 1}`,
     score: 0,
@@ -150,7 +150,7 @@ try {
     updatedAt: 3,
   }));
   const playersOverCapacity = [...playersAtCapacity, {
-    id: 'player-16', name: 'Player 16', score: 0, turns: 0,
+    id: 'player-21', name: 'Player 21', score: 0, turns: 0,
   }];
   await assertFails(setDoc(spellingReference, {
     ...spellingRoom,

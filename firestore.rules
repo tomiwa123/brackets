@@ -25,7 +25,7 @@ service cloud.firestore {
           || data.status == 'finished' || data.status == 'closed')
         && data.players is list
         && data.players.size() >= 1
-        && data.players.size() <= 15
+        && data.players.size() <= 20
         && data.playerOrder is list
         && data.playerOrder.size() == data.players.size()
         && data.turnIndex is int

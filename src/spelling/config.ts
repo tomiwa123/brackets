@@ -1,1 +1,1 @@
-export const MAX_PLAYERS = 15
+export const MAX_PLAYERS = 20
