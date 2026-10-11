@@ -1,6 +1,6 @@
 import { doc, getDoc, onSnapshot, runTransaction, setDoc } from 'firebase/firestore'
 import { db, hasFirebaseConfig } from '../services/firebase'
-import { drawWord, makeTurn, nextTurn, pointsForRound, roundForTurn } from './gameEngine'
+import { drawWord, eligibleTemporaryJudges, judgeIdForPlayer, judgeIdForTurn, makeTurn, nextTurn, pointsForRound, roundForTurn } from './gameEngine'
 import type { Category, Hint, SpellingRoom } from './types'
 import { WORD_BANK } from './words'
 
@@ -166,8 +166,28 @@ export async function startSpellingGame(code: string, actorId: string): Promise<
   await mutate(code, (room) => {
     requireHost(room, actorId)
     if (room.players.length < 2) throw new Error('NEED_PLAYERS')
+    if (eligibleTemporaryJudges(room).length === 0) throw new Error('NEED_JUDGE')
     const firstPlayerId = room.playerOrder[0]
-    return { ...room, status: 'playing', turnIndex: 0, currentTurn: makeTurn(firstPlayerId, room.revision + 1) }
+    return {
+      ...room,
+      status: 'playing',
+      turnIndex: 0,
+      currentTurn: makeTurn(firstPlayerId, room.revision + 1, judgeIdForPlayer(room, firstPlayerId)),
+    }
+  })
+}
+
+export async function reassignJudge(code: string, actorId: string): Promise<void> {
+  await mutate(code, (room) => {
+    requireHost(room, actorId)
+    const turn = room.currentTurn
+    if (!turn || turn.playerId !== room.hostId || turn.wordId) return room
+    const candidates = eligibleTemporaryJudges(room)
+    if (candidates.length < 2) return room
+    const currentJudgeId = judgeIdForTurn(room)
+    const currentIndex = candidates.findIndex((player) => player.id === currentJudgeId)
+    const judgeId = candidates[(currentIndex + 1) % candidates.length].id
+    return { ...room, currentTurn: { ...turn, judgeId } }
   })
 }
 
@@ -198,7 +218,7 @@ export async function requestHint(code: string, actorId: string, hint: Hint): Pr
 
 export async function judgeTurn(code: string, actorId: string, correct: boolean): Promise<void> {
   await mutate(code, (room) => {
-    requireHost(room, actorId)
+    if (judgeIdForTurn(room) !== actorId) throw new Error('JUDGE_ONLY')
     const turn = room.currentTurn
     if (!turn?.wordId || !turn.category || turn.ruling) return room
     const round = roundForTurn(room.turnIndex, room.playerOrder.length)
@@ -224,7 +244,7 @@ export async function judgeTurn(code: string, actorId: string, correct: boolean)
 
 export async function undoRuling(code: string, actorId: string): Promise<void> {
   await mutate(code, (room) => {
-    requireHost(room, actorId)
+    if (judgeIdForTurn(room) !== actorId) throw new Error('JUDGE_ONLY')
     const turn = room.currentTurn
     const record = room.history.at(-1)
     if (!turn?.ruling || !record || record.turnId !== turn.turnId) return room
@@ -241,7 +261,7 @@ export async function undoRuling(code: string, actorId: string): Promise<void> {
 
 export async function skipWord(code: string, actorId: string): Promise<void> {
   await mutate(code, (room) => {
-    requireHost(room, actorId)
+    if (judgeIdForTurn(room) !== actorId) throw new Error('JUDGE_ONLY')
     const turn = room.currentTurn
     if (!turn?.category || turn.ruling) return room
     const round = roundForTurn(room.turnIndex, room.playerOrder.length)

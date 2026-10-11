@@ -43,6 +43,7 @@ export interface TurnRecord {
 export interface CurrentTurn {
   turnId: string
   playerId: string
+  judgeId?: string
   category: Category | null
   wordId: string | null
   requestedHints: Hint[]

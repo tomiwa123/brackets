@@ -12,13 +12,14 @@ import {
   joinSpellingRoom,
   judgeTurn,
   listenToSpellingRoom,
+  reassignJudge,
   replayRoom,
   requestHint,
   skipWord,
   startSpellingGame,
   undoRuling,
 } from './firestore'
-import { ROUND_LABELS, rankedPlayers, roundForTurn } from './gameEngine'
+import { eligibleTemporaryJudges, judgeIdForTurn, ROUND_LABELS, rankedPlayers, roundForTurn } from './gameEngine'
 import type { Category, Hint, SpellingRoom } from './types'
 import { CATEGORIES } from './types'
 import { getWord } from './words'
@@ -32,7 +33,9 @@ function messageFor(error: unknown): string {
     GAME_STARTED: 'This game has already started.',
     NAME_TAKEN: 'That name is already in the room. Add an initial so everyone stays distinct.',
     NEED_PLAYERS: 'Add at least one more player before starting.',
+    NEED_JUDGE: 'At least one other player must join on their phone so they can judge your turns.',
     HOST_ONLY: 'Only the host can do that.',
+    JUDGE_ONLY: 'Only this turn’s judge can do that.',
     NOT_YOUR_TURN: 'The current speller chooses this category.',
   }
   return messages[message] ?? (message || 'Something went wrong. Please try again.')
@@ -125,6 +128,7 @@ function Lobby({ room, act }: { room: SpellingRoom; act: (work: () => Promise<vo
   const isHost = room.hostId === me
   const [guest, setGuest] = useState('')
   const [copied, setCopied] = useState(false)
+  const hasTemporaryJudge = eligibleTemporaryJudges(room).length > 0
   const link = `${window.location.origin}/spelling/join/${room.roomCode}`
 
   const copyLink = async () => {
@@ -151,7 +155,7 @@ function Lobby({ room, act }: { room: SpellingRoom; act: (work: () => Promise<vo
           </div>
           {isHost && room.players.length < 10 && <div className="add-guest"><UserPlus size={20} /><input value={guest} maxLength={28} onChange={(event) => setGuest(event.target.value)} placeholder="Add someone without a phone" /><button onClick={() => { if (guest.trim()) act(async () => { await addGuest(room.roomCode, me, guest); setGuest('') }) }}>Add</button></div>}
           <div className="rules-mini"><div><strong>3</strong><span>rounds each</span></div><div><strong>6</strong><span>categories</span></div><div><strong>0</strong><span>eliminations</span></div></div>
-          {isHost ? <button className="primary-button start-button" onClick={() => act(() => startSpellingGame(room.roomCode, me))} disabled={room.players.length < 2}>Start the game <span>→</span></button> : <div className="waiting"><i /><span>Waiting for the host to start…</span></div>}
+          {isHost ? <><button className="primary-button start-button" onClick={() => act(() => startSpellingGame(room.roomCode, me))} disabled={room.players.length < 2 || !hasTemporaryJudge}>Start the game <span>→</span></button>{room.players.length >= 2 && !hasTemporaryJudge && <p className="judge-requirement">One player needs to join on their phone so they can judge your turns.</p>}</> : <div className="waiting"><i /><span>Waiting for the host to start…</span></div>}
         </div>
       </section>
     </main>
@@ -173,6 +177,10 @@ function CategoryPicker({ room, act }: { room: SpellingRoom; act: (work: () => P
   const player = room.players.find((item) => item.id === turn.playerId)!
   const mayChoose = me === turn.playerId || me === room.hostId
   const round = roundForTurn(room.turnIndex, room.playerOrder.length)
+  const judgeId = judgeIdForTurn(room)
+  const judge = room.players.find((item) => item.id === judgeId)
+  const usesTemporaryJudge = turn.playerId === room.hostId
+  const canReassign = usesTemporaryJudge && me === room.hostId && eligibleTemporaryJudges(room).length > 1
   return (
     <main className="spell-shell game-page">
       <GameHeader room={room} />
@@ -180,6 +188,7 @@ function CategoryPicker({ room, act }: { room: SpellingRoom; act: (work: () => P
         <p className="eyebrow">Round {round} · {ROUND_LABELS[round - 1]}</p>
         <h1>{player.name}, pick your poison.</h1>
         <p>{mayChoose ? 'Choose the kind of trouble you want.' : `${player.name} is choosing a category…`}</p>
+        {usesTemporaryJudge && judge && <div className="temporary-judge-banner"><div><small>Temporary judge</small><b>{judge.name} is judging this turn.</b></div>{canReassign && <button onClick={() => act(() => reassignJudge(room.roomCode, me))}>Change judge</button>}</div>}
         <div className="category-grid">
           {CATEGORIES.map((category, index) => <button key={category} disabled={!mayChoose} onClick={() => act(() => chooseCategory(room.roomCode, me, category))}><span>0{index + 1}</span><b>{category}</b><small>{categoryNotes[category]}</small></button>)}
         </div>
@@ -204,6 +213,10 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
   const player = room.players.find((item) => item.id === turn.playerId)!
   const isHost = room.hostId === me
   const isSpeller = turn.playerId === me
+  const judgeId = judgeIdForTurn(room)
+  const judge = room.players.find((item) => item.id === judgeId)
+  const isJudge = judgeId === me
+  const usesTemporaryJudge = judgeId !== room.hostId
   const round = roundForTurn(room.turnIndex, room.playerOrder.length)
   const result = turn.ruling
   const request = (hint: Hint) => act(() => requestHint(room.roomCode, me, hint))
@@ -230,10 +243,11 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
         <aside className="game-sidebar">
           <div className="points-card"><span>Worth</span><strong>{round}</strong><small>{round === 1 ? 'point' : 'points'}</small></div>
           <Scoreboard room={room} compact />
-          {isHost && !result && <div className="judge-card"><p>Host ruling</p><button className="correct" onClick={() => act(() => judgeTurn(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeTurn(room.roomCode, me, false))}><X /> Not quite</button><button className="skip" onClick={() => act(() => skipWord(room.roomCode, me))}>Skip this word</button></div>}
+          {judge && <div className="judge-status"><small>{usesTemporaryJudge ? 'Temporary judge' : 'Judge'}</small><b>{judge.name}</b></div>}
+          {isJudge && !result && <div className="judge-card"><p>{usesTemporaryJudge ? 'Your ruling' : 'Host ruling'}</p><button className="correct" onClick={() => act(() => judgeTurn(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeTurn(room.roomCode, me, false))}><X /> Not quite</button><button className="skip" onClick={() => act(() => skipWord(room.roomCode, me))}>Skip this word</button></div>}
         </aside>
       </section>
-      {result && <div className={`result-overlay ${result}`}><div><span>{result === 'correct' ? '✓' : '×'}</span><p>{word.word}</p><h2>{result === 'correct' ? `That’s ${round} on the board!` : 'Not quite — next word, same energy.'}</h2>{isHost ? <div className="result-actions"><button onClick={() => act(() => undoRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo</button><button className="primary-button" onClick={() => act(() => advanceTurn(room.roomCode, me))}>Next turn →</button></div> : <small>Waiting for the host…</small>}</div></div>}
+      {result && <div className={`result-overlay ${result}`}><div><span>{result === 'correct' ? '✓' : '×'}</span><p>{word.word}</p><h2>{result === 'correct' ? `That’s ${round} on the board!` : 'Not quite — next word, same energy.'}</h2>{(isJudge || isHost) ? <div className="result-actions">{isJudge && <button className="undo-button" onClick={() => act(() => undoRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo</button>}{isHost && <button className="primary-button" onClick={() => act(() => advanceTurn(room.roomCode, me))}>Next turn →</button>}</div> : <small>Waiting for the host…</small>}</div></div>}
     </main>
   )
 }

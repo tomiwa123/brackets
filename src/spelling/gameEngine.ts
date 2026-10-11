@@ -15,10 +15,30 @@ export function pointsForRound(round: number): number {
   return Math.min(TOTAL_ROUNDS, Math.max(1, round))
 }
 
-export function makeTurn(playerId: string, revision: number): CurrentTurn {
+export function eligibleTemporaryJudges(room: Pick<SpellingRoom, 'hostId' | 'players' | 'playerOrder'>): Player[] {
+  return room.playerOrder
+    .map((id) => room.players.find((player) => player.id === id))
+    .filter((player): player is Player => Boolean(player && player.id !== room.hostId && !player.isGuest))
+}
+
+export function judgeIdForPlayer(
+  room: Pick<SpellingRoom, 'hostId' | 'players' | 'playerOrder'>,
+  playerId: string,
+): string | null {
+  if (playerId !== room.hostId) return room.hostId
+  return eligibleTemporaryJudges(room)[0]?.id ?? null
+}
+
+export function judgeIdForTurn(room: SpellingRoom): string | null {
+  if (!room.currentTurn) return null
+  return room.currentTurn.judgeId ?? judgeIdForPlayer(room, room.currentTurn.playerId)
+}
+
+export function makeTurn(playerId: string, revision: number, judgeId?: string | null): CurrentTurn {
   return {
     turnId: `${Date.now()}-${revision}-${playerId}`,
     playerId,
+    ...(judgeId ? { judgeId } : {}),
     category: null,
     wordId: null,
     requestedHints: [],
@@ -59,7 +79,7 @@ export function nextTurn(room: SpellingRoom): Pick<SpellingRoom, 'turnIndex' | '
   const nextPlayerId = room.playerOrder[nextIndex % room.playerOrder.length]
   return {
     turnIndex: nextIndex,
-    currentTurn: makeTurn(nextPlayerId, room.revision + 1),
+    currentTurn: makeTurn(nextPlayerId, room.revision + 1, judgeIdForPlayer(room, nextPlayerId)),
     status: 'playing',
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { difficultyForRound, drawWord, nextTurn, pointsForRound, roundForTurn } from './gameEngine'
+import { difficultyForRound, drawWord, eligibleTemporaryJudges, judgeIdForPlayer, nextTurn, pointsForRound, roundForTurn } from './gameEngine'
 import type { SpellingRoom, WordCard } from './types'
 
 describe('spelling game engine', () => {
@@ -19,9 +19,46 @@ describe('spelling game engine', () => {
 
   it('finishes only after all three rounds', () => {
     const room = {
+      hostId: 'a',
+      players: [
+        { id: 'a', name: 'Host', score: 0, turns: 0 },
+        { id: 'b', name: 'Player', score: 0, turns: 0 },
+      ],
       playerOrder: ['a', 'b'], turnIndex: 4, revision: 5,
     } as SpellingRoom
     expect(nextTurn(room).status).toBe('playing')
     expect(nextTurn({ ...room, turnIndex: 5 }).status).toBe('finished')
+  })
+
+  it('assigns a non-guest temporary judge when the host spells', () => {
+    const room = {
+      hostId: 'host',
+      players: [
+        { id: 'host', name: 'Host', score: 0, turns: 0 },
+        { id: 'guest', name: 'Guest', score: 0, turns: 0, isGuest: true },
+        { id: 'player', name: 'Player', score: 0, turns: 0 },
+      ],
+      playerOrder: ['host', 'guest', 'player'],
+    } as SpellingRoom
+
+    expect(eligibleTemporaryJudges(room).map((player) => player.id)).toEqual(['player'])
+    expect(judgeIdForPlayer(room, 'host')).toBe('player')
+    expect(judgeIdForPlayer(room, 'player')).toBe('host')
+  })
+
+  it('puts judge assignment on each new turn', () => {
+    const room = {
+      hostId: 'host',
+      players: [
+        { id: 'host', name: 'Host', score: 0, turns: 0 },
+        { id: 'player', name: 'Player', score: 0, turns: 0 },
+      ],
+      playerOrder: ['host', 'player'],
+      turnIndex: 1,
+      revision: 2,
+    } as SpellingRoom
+
+    expect(nextTurn(room).currentTurn?.playerId).toBe('host')
+    expect(nextTurn(room).currentTurn?.judgeId).toBe('player')
   })
 })
