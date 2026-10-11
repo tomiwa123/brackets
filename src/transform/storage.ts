@@ -59,6 +59,7 @@ export const V2_STORAGE_KEY = 'transform:v2:data';
 
 export const ERA_1_ID = 'era-1';
 export const ERA_2_ID = 'era-2';
+export const ERA_3_ID = 'era-3';
 export const ERA_2_START = PROGRAM.eras.find((era) => era.id === ERA_2_ID)?.startDate ?? '2026-08-23';
 
 export function createEmptyTransformData(): TransformDataV2 {
@@ -96,7 +97,7 @@ export function isRecordMap(value: unknown): value is RecordMap {
 }
 
 export function isTransformDataV2(value: unknown): value is TransformDataV2 {
-  if (!isObject(value) || value.schemaVersion !== 2 || value.activeEraId !== ERA_2_ID) return false;
+  if (!isObject(value) || value.schemaVersion !== 2 || (value.activeEraId !== ERA_2_ID && value.activeEraId !== ERA_3_ID)) return false;
   if (!isObject(value.eras) || !(ERA_1_ID in value.eras) || !(ERA_2_ID in value.eras)) return false;
 
   return Object.entries(value.eras).every(([id, candidate]) => {
@@ -191,6 +192,16 @@ export function loadLocalTransformData(storageBackend: Storage = localStorage): 
     try {
       const parsed = JSON.parse(rawV2) as unknown;
       if (isTransformDataV2(parsed)) {
+        for (const era of PROGRAM.eras) {
+          if (!parsed.eras[era.id]) {
+            parsed.eras[era.id] = { ...era, durationDays: PROGRAM.durationDays, records: {} };
+          } else {
+            parsed.eras[era.id].status = era.status;
+            parsed.eras[era.id].retiredOn = era.retiredOn;
+          }
+        }
+        parsed.activeEraId = PROGRAM.activeEraId;
+
         const rawV1 = storageBackend.getItem(V1_STORAGE_KEY);
         return {
           data: parsed,

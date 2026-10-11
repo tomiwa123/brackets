@@ -51,7 +51,7 @@ export const PROGRAM: ProgramConfig = {
   title: '3-Month Transformation',
   subtitle: 'Small boxes, every day. That is the whole game.',
   durationDays: 90,
-  activeEraId: 'era-2',
+  activeEraId: 'era-3',
   eras: [
     {
       id: 'era-1',
@@ -64,8 +64,16 @@ export const PROGRAM: ProgramConfig = {
     {
       id: 'era-2',
       name: 'Era 2',
-      description: 'Current attempt',
+      description: 'Second attempt',
       startDate: '2026-08-23',
+      status: 'archived',
+      retiredOn: '2026-09-13',
+    },
+    {
+      id: 'era-3',
+      name: 'Era 3',
+      description: 'Third attempt',
+      startDate: '2026-10-10',
       status: 'active',
     },
   ],

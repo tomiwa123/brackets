@@ -10,7 +10,7 @@ service cloud.firestore {
     }
 
     function isEraId(eraId) {
-      return eraId == 'era-1' || eraId == 'era-2';
+      return eraId == 'era-1' || eraId == 'era-2' || eraId == 'era-3';
     }
 
     function validProgram() {
@@ -23,7 +23,7 @@ service cloud.firestore {
           'updatedAt'
         ])
         && data.schemaVersion == 2
-        && data.activeEraId == 'era-2'
+        && data.activeEraId == 'era-3'
         && (!('sourceFingerprints' in data) || data.sourceFingerprints is list)
         && (!('createdAt' in data) || data.createdAt is timestamp)
         && data.updatedAt is timestamp;

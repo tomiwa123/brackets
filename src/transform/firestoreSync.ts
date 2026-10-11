@@ -14,6 +14,7 @@ import { db, hasFirebaseConfig } from '../services/firebase';
 import {
   ERA_1_ID,
   ERA_2_ID,
+  ERA_3_ID,
   isRecordMap,
   type DayRecord,
   type EraData,
@@ -40,7 +41,7 @@ interface StoredRecordDocument {
 }
 
 const programRef = doc(db, 'transformation', 'personal');
-const eraIds = [ERA_1_ID, ERA_2_ID] as const;
+const eraIds = [ERA_1_ID, ERA_2_ID, ERA_3_ID] as const;
 const MAX_CLOUD_BACKUP_BYTES = 700_000;
 
 function recordRef(eraId: string, key: string) {

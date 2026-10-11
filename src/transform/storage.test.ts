@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ERA_1_ID,
   ERA_2_ID,
+  ERA_3_ID,
   V1_BACKUP_KEY,
   V1_STORAGE_KEY,
   V2_STORAGE_KEY,
@@ -147,6 +148,30 @@ describe('v1 to era migration', () => {
     expect(backend.getItem(V2_STORAGE_KEY)).toBe(invalidV2);
     expect(result.data).toEqual(createEmptyTransformData());
   });
+
+  it('upgrades an Era 2 local snapshot to Era 3 without losing history', () => {
+    const backend = new MemoryStorage();
+    const legacy = createEmptyTransformData();
+    legacy.activeEraId = ERA_2_ID;
+    delete legacy.eras[ERA_3_ID];
+    legacy.eras[ERA_2_ID].status = 'active';
+    delete legacy.eras[ERA_2_ID].retiredOn;
+    legacy.eras[ERA_2_ID].records['2026-09-13'] = record('2026-09-13', {
+      completed: { 'p0-hydration': true },
+      note: 'Keep this',
+    });
+    backend.setItem(V2_STORAGE_KEY, JSON.stringify(legacy));
+
+    const result = loadLocalTransformData(backend);
+
+    expect(result.recoveryBlocked).toBe(false);
+    expect(result.data.activeEraId).toBe(ERA_3_ID);
+    expect(result.data.eras[ERA_2_ID].status).toBe('archived');
+    expect(result.data.eras[ERA_2_ID].retiredOn).toBe('2026-09-13');
+    expect(result.data.eras[ERA_2_ID].records['2026-09-13'].note).toBe('Keep this');
+    expect(result.data.eras[ERA_3_ID].status).toBe('active');
+    expect(result.data.eras[ERA_3_ID].records).toEqual({});
+  });
 });
 
 describe('era navigation and summaries', () => {
@@ -159,7 +184,8 @@ describe('era navigation and summaries', () => {
     expect(eraProgramEnd(era2)).toBe('2026-11-20');
     expect(dayForEraOrdinal(era1, 10, '2026-09-01')).toBe('2026-08-05');
     expect(dayForEraOrdinal(era1, 40, '2026-10-01')).toBe('2026-08-22');
-    expect(dayForEraOrdinal(era2, 40, '2026-08-23')).toBe('2026-08-23');
+    expect(dayForEraOrdinal(era2, 40, '2026-08-23')).toBe('2026-09-13');
+    expect(dayForEraOrdinal(era2, 40, '2026-10-01')).toBe('2026-09-13');
   });
 
   it('reports the last meaningful archived day and ignores empty-shaped records', () => {

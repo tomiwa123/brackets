@@ -34,7 +34,7 @@ try {
   await assertSucceeds(
     setDoc(programReference, {
       schemaVersion: 2,
-      activeEraId: 'era-2',
+      activeEraId: 'era-3',
       sourceFingerprints: ['fnv1a-test'],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -62,8 +62,23 @@ try {
       schemaVersion: 2,
       id: 'era-2',
       name: 'Era 2',
-      description: 'Current attempt',
+      description: 'Second attempt',
       startDate: '2026-08-23',
+      durationDays: 90,
+      status: 'archived',
+      retiredOn: '2026-09-13',
+      updatedAt: serverTimestamp(),
+    }),
+  );
+
+  const era3Reference = doc(firestore, 'transformation/personal/eras/era-3');
+  await assertSucceeds(
+    setDoc(era3Reference, {
+      schemaVersion: 2,
+      id: 'era-3',
+      name: 'Era 3',
+      description: 'Third attempt',
+      startDate: '2026-10-10',
       durationDays: 90,
       status: 'active',
       updatedAt: serverTimestamp(),
