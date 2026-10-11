@@ -267,6 +267,9 @@ function Room({ code, onLeave }: { code: string; onLeave: () => void }) {
 }
 
 export function SpellingApp() {
+  useEffect(() => {
+    document.title = 'Spelling bee game night'
+  }, [])
   const [roomCode, setRoomCode] = useState<string | null>(() => {
     const remembered = getRememberedSession()
     return joinCodeFromPath && remembered?.roomCode === joinCodeFromPath ? joinCodeFromPath : null
