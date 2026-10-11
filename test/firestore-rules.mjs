@@ -136,12 +136,35 @@ try {
   await assertSucceeds(setDoc(spellingReference, spellingRoom));
   await assertSucceeds(getDoc(spellingReference));
   await assertSucceeds(setDoc(spellingReference, { ...spellingRoom, revision: 1, updatedAt: 2 }));
+  const playersAtCapacity = Array.from({ length: 15 }, (_, index) => ({
+    id: `player-${index + 1}`,
+    name: `Player ${index + 1}`,
+    score: 0,
+    turns: 0,
+  }));
+  await assertSucceeds(setDoc(spellingReference, {
+    ...spellingRoom,
+    players: playersAtCapacity,
+    playerOrder: playersAtCapacity.map((player) => player.id),
+    revision: 2,
+    updatedAt: 3,
+  }));
+  const playersOverCapacity = [...playersAtCapacity, {
+    id: 'player-16', name: 'Player 16', score: 0, turns: 0,
+  }];
+  await assertFails(setDoc(spellingReference, {
+    ...spellingRoom,
+    players: playersOverCapacity,
+    playerOrder: playersOverCapacity.map((player) => player.id),
+    revision: 3,
+    updatedAt: 4,
+  }));
   await assertFails(setDoc(spellingReference, { ...spellingRoom, hostId: 'hijacker', revision: 2 }));
   await assertFails(setDoc(doc(firestore, 'spellingRooms/TOOLONG'), { ...spellingRoom, roomCode: 'TOOLONG' }));
   await assertFails(deleteDoc(spellingReference));
 
   await assertFails(setDoc(doc(firestore, 'unrelated/document'), { open: true }));
-  console.log('Firestore rules: 18 assertions passed.');
+  console.log('Firestore rules: 20 assertions passed.');
 } finally {
   await environment.cleanup();
 }

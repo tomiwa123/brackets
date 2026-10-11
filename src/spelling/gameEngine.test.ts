@@ -30,6 +30,26 @@ describe('spelling game engine', () => {
     expect(nextTurn({ ...room, turnIndex: 5 }).status).toBe('finished')
   })
 
+  it('supports all 45 turns in a 15-player game', () => {
+    const players = Array.from({ length: 15 }, (_, index) => ({
+      id: `player-${index + 1}`,
+      name: `Player ${index + 1}`,
+      score: 0,
+      turns: 0,
+    }))
+    const room = {
+      hostId: players[0].id,
+      players,
+      playerOrder: players.map((player) => player.id),
+      turnIndex: 43,
+      revision: 44,
+    } as SpellingRoom
+
+    expect(roundForTurn(44, players.length)).toBe(3)
+    expect(nextTurn(room).status).toBe('playing')
+    expect(nextTurn({ ...room, turnIndex: 44 }).status).toBe('finished')
+  })
+
   it('assigns a non-guest temporary judge when the host spells', () => {
     const room = {
       hostId: 'host',

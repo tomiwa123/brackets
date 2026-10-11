@@ -3,6 +3,7 @@ import { db, hasFirebaseConfig } from '../services/firebase'
 import { drawWord, eligibleTemporaryJudges, judgeIdForPlayer, judgeIdForTurn, makeTurn, nextTurn, pointsForRound, roundForTurn } from './gameEngine'
 import type { Category, Hint, SpellingRoom } from './types'
 import { WORD_BANK } from './words'
+import { MAX_PLAYERS } from './config'
 
 const COLLECTION = 'spellingRooms'
 const PLAYER_KEY = 'spelling-night-player-id'
@@ -118,7 +119,7 @@ export async function joinSpellingRoom(code: string, name: string): Promise<void
         players: room.players.map((player) => player.id === playerId ? { ...player, name: name.trim() } : player),
       }
     }
-    if (room.players.length >= 10) throw new Error('ROOM_FULL')
+    if (room.players.length >= MAX_PLAYERS) throw new Error('ROOM_FULL')
     if (room.players.some((player) => player.name.toLowerCase() === name.trim().toLowerCase())) {
       throw new Error('NAME_TAKEN')
     }
@@ -151,7 +152,7 @@ export async function addGuest(code: string, actorId: string, name: string): Pro
   await mutate(code, (room) => {
     requireHost(room, actorId)
     if (room.status !== 'lobby') throw new Error('GAME_STARTED')
-    if (room.players.length >= 10) throw new Error('ROOM_FULL')
+    if (room.players.length >= MAX_PLAYERS) throw new Error('ROOM_FULL')
     if (room.players.some((player) => player.name.toLowerCase() === name.trim().toLowerCase())) throw new Error('NAME_TAKEN')
     const guestId = randomId('guest')
     return {

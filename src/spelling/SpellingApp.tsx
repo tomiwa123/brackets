@@ -23,13 +23,14 @@ import { eligibleTemporaryJudges, judgeIdForTurn, ROUND_LABELS, rankedPlayers, r
 import type { Category, Hint, SpellingRoom } from './types'
 import { CATEGORIES } from './types'
 import { getWord } from './words'
+import { MAX_PLAYERS } from './config'
 import './spelling.css'
 
 function messageFor(error: unknown): string {
   const message = error instanceof Error ? error.message : ''
   const messages: Record<string, string> = {
     ROOM_NOT_FOUND: 'That room does not exist. Check the four-letter code.',
-    ROOM_FULL: 'This room already has ten players.',
+    ROOM_FULL: `This room already has ${MAX_PLAYERS} players.`,
     GAME_STARTED: 'This game has already started.',
     NAME_TAKEN: 'That name is already in the room. Add an initial so everyone stays distinct.',
     NEED_PLAYERS: 'Add at least one more player before starting.',
@@ -149,11 +150,11 @@ function Lobby({ room, act }: { room: SpellingRoom; act: (work: () => Promise<vo
           <small>Friends can scan or visit the invite link.</small>
         </div>
         <div className="lobby-main">
-          <div className="section-heading"><div><p className="eyebrow">The lineup</p><h1>{room.players.length} of 10 players</h1></div><span>{isHost ? 'You’re hosting' : 'You’re in'}</span></div>
+          <div className="section-heading"><div><p className="eyebrow">The lineup</p><h1>{room.players.length} of {MAX_PLAYERS} players</h1></div><span>{isHost ? 'You’re hosting' : 'You’re in'}</span></div>
           <div className="player-grid">
             {room.players.map((player, index) => <div className="player-chip" key={player.id}><b>{index + 1}</b><span>{player.name}</span>{player.id === room.hostId && <Crown size={16} />}{player.isGuest && <small>guest</small>}</div>)}
           </div>
-          {isHost && room.players.length < 10 && <div className="add-guest"><UserPlus size={20} /><input value={guest} maxLength={28} onChange={(event) => setGuest(event.target.value)} placeholder="Add someone without a phone" /><button onClick={() => { if (guest.trim()) act(async () => { await addGuest(room.roomCode, me, guest); setGuest('') }) }}>Add</button></div>}
+          {isHost && room.players.length < MAX_PLAYERS && <div className="add-guest"><UserPlus size={20} /><input value={guest} maxLength={28} onChange={(event) => setGuest(event.target.value)} placeholder="Add someone without a phone" /><button onClick={() => { if (guest.trim()) act(async () => { await addGuest(room.roomCode, me, guest); setGuest('') }) }}>Add</button></div>}
           <div className="rules-mini"><div><strong>3</strong><span>rounds each</span></div><div><strong>6</strong><span>categories</span></div><div><strong>0</strong><span>eliminations</span></div></div>
           {isHost ? <><button className="primary-button start-button" onClick={() => act(() => startSpellingGame(room.roomCode, me))} disabled={room.players.length < 2 || !hasTemporaryJudge}>Start the game <span>→</span></button>{room.players.length >= 2 && !hasTemporaryJudge && <p className="judge-requirement">One player needs to join on their phone so they can judge your turns.</p>}</> : <div className="waiting"><i /><span>Waiting for the host to start…</span></div>}
         </div>
