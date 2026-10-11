@@ -8,7 +8,7 @@
     "vercel-dev": "vercel dev",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test": "vitest run src/transform",
+    "test": "vitest run src/transform src/spelling",
     "test:rules:unit": "node test/firestore-rules.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-brackets \"env -u NODE PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/node test/firestore-rules.mjs\"",
     "preview": "vite preview"
@@ -22,6 +22,7 @@
     "framer-motion": "^12.23.25",
     "lucide-react": "^0.555.0",
     "openai": "^6.9.1",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwind-merge": "^3.4.0",

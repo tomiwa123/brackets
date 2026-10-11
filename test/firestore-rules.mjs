@@ -117,8 +117,31 @@ try {
   await assertSucceeds(setDoc(roomReference, { roomCode: 'ABCD' }));
   await assertSucceeds(getDoc(roomReference));
 
+  const spellingReference = doc(firestore, 'spellingRooms/BZZZ');
+  const spellingRoom = {
+    roomCode: 'BZZZ',
+    title: 'Spelling bee game night',
+    hostId: 'host-1',
+    status: 'lobby',
+    players: [{ id: 'host-1', name: 'Host', score: 0, turns: 0 }],
+    playerOrder: ['host-1'],
+    turnIndex: 0,
+    currentTurn: null,
+    history: [],
+    usedWordIds: [],
+    revision: 0,
+    createdAt: 1,
+    updatedAt: 1,
+  };
+  await assertSucceeds(setDoc(spellingReference, spellingRoom));
+  await assertSucceeds(getDoc(spellingReference));
+  await assertSucceeds(setDoc(spellingReference, { ...spellingRoom, revision: 1, updatedAt: 2 }));
+  await assertFails(setDoc(spellingReference, { ...spellingRoom, hostId: 'hijacker', revision: 2 }));
+  await assertFails(setDoc(doc(firestore, 'spellingRooms/TOOLONG'), { ...spellingRoom, roomCode: 'TOOLONG' }));
+  await assertFails(deleteDoc(spellingReference));
+
   await assertFails(setDoc(doc(firestore, 'unrelated/document'), { open: true }));
-  console.log('Firestore rules: 12 assertions passed.');
+  console.log('Firestore rules: 18 assertions passed.');
 } finally {
   await environment.cleanup();
 }

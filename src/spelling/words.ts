@@ -1,0 +1,240 @@
+import type { Category, Difficulty, WordCard } from './types'
+
+type Seed = readonly [word: string, pronunciation: string, definition: string]
+
+const seeds: Record<Exclude<Category, "Dealer's Choice">, Record<Difficulty, readonly Seed[]>> = {
+  'Bay & Beyond': {
+    warmup: [
+      ['foggy', 'FOG-ee', 'Filled with thick mist.'],
+      ['redwood', 'RED-wood', 'A very tall evergreen tree native to coastal California.'],
+      ['transit', 'TRAN-zit', 'The movement of people or things from one place to another.'],
+      ['coastal', 'KOH-stuhl', 'Relating to land beside the sea.'],
+      ['harbor', 'HAR-ber', 'A sheltered place where ships can anchor.'],
+    ],
+    tricky: [
+      ['embarcadero', 'em-bar-kuh-DAIR-oh', 'A waterfront landing place or boulevard.'],
+      ['sequoia', 'sih-KWOY-uh', 'A giant evergreen tree related to the redwood.'],
+      ['estuary', 'ES-choo-air-ee', 'Where a river meets the sea and fresh water mixes with salt water.'],
+      ['peninsula', 'puh-NIN-suh-luh', 'Land almost surrounded by water.'],
+      ['topography', 'tuh-POG-ruh-fee', 'The physical features and contours of an area.'],
+    ],
+    menace: [
+      ['chiaroscuro', 'kee-ar-uh-SKYOOR-oh', 'A strong contrast between light and dark in art.'],
+      ['microclimate', 'MY-kroh-KLY-mit', 'The climate of a very small or restricted area.'],
+      ['archipelago', 'ar-kuh-PEL-uh-goh', 'A group or chain of islands.'],
+      ['juxtaposition', 'juhk-stuh-puh-ZISH-un', 'The placement of things side by side for contrast.'],
+      ['sesquicentennial', 'ses-kwee-sen-TEN-ee-uhl', 'A one-hundred-and-fiftieth anniversary.'],
+    ],
+  },
+  'Internet Brain': {
+    warmup: [
+      ['pixel', 'PIK-suhl', 'The smallest controllable element in a digital image.'],
+      ['buffer', 'BUF-er', 'Temporary storage used while data is transferred.'],
+      ['browser', 'BROW-zer', 'Software used to access websites.'],
+      ['podcast', 'POD-kast', 'A digital audio program released in episodes.'],
+      ['emoji', 'ih-MOH-jee', 'A small digital icon used to express an idea or emotion.'],
+    ],
+    tricky: [
+      ['algorithm', 'AL-guh-rith-um', 'A set of rules for solving a problem or completing a task.'],
+      ['cache', 'kash', 'Stored data kept for faster future access.'],
+      ['asynchronous', 'ay-SIN-kruh-nus', 'Not occurring at the same time or pace.'],
+      ['interface', 'IN-ter-fays', 'A point where a person or system interacts with another system.'],
+      ['encryption', 'en-KRIP-shun', 'The process of encoding information to protect it.'],
+    ],
+    menace: [
+      ['idempotent', 'eye-dem-POH-tent', 'Producing the same result even when repeated.'],
+      ['quaternion', 'kwuh-TUR-nee-un', 'A mathematical system extending complex numbers.'],
+      ['steganography', 'steg-uh-NOG-ruh-fee', 'The practice of hiding a message within another medium.'],
+      ['heuristic', 'hyoo-RIS-tik', 'A practical shortcut used to solve a problem.'],
+      ['interoperability', 'in-ter-op-er-uh-BIL-uh-tee', 'The ability of systems to work together.'],
+    ],
+  },
+  'Passport Stamps': {
+    warmup: [
+      ['safari', 'suh-FAR-ee', 'A journey or expedition, especially to observe wildlife.'],
+      ['bazaar', 'buh-ZAR', 'A market made up of many small shops or stalls.'],
+      ['kimono', 'kih-MOH-noh', 'A traditional Japanese robe with wide sleeves.'],
+      ['tango', 'TANG-goh', 'A dramatic partner dance originating near the Río de la Plata.'],
+      ['mosaic', 'moh-ZAY-ik', 'A picture or pattern made from small pieces of material.'],
+    ],
+    tricky: [
+      ['bouillabaisse', 'boo-yuh-BAYS', 'A Provençal seafood stew.'],
+      ['diaspora', 'dye-AS-puh-ruh', 'A people dispersed from an ancestral homeland.'],
+      ['souvenir', 'soo-vuh-NEER', 'An object kept as a reminder of a place or event.'],
+      ['karaoke', 'kar-ee-OH-kee', 'Entertainment in which people sing to recorded accompaniment.'],
+      ['rendezvous', 'RAHN-day-voo', 'A meeting at an agreed time and place.'],
+    ],
+    menace: [
+      ['zeitgeist', 'TSYTE-gyste', 'The defining spirit or mood of an era.'],
+      ['Weltanschauung', 'VELT-an-show-oong', 'A comprehensive worldview or philosophy of life.'],
+      ['bourgeoisie', 'boor-zhwah-ZEE', 'The social class associated with property ownership and commerce.'],
+      ['schadenfreude', 'SHAH-den-froy-duh', 'Pleasure at another person’s misfortune.'],
+      ['appoggiatura', 'uh-poj-uh-TOOR-uh', 'A nonharmonic musical note that resolves to a main note.'],
+    ],
+  },
+  'Sound & Screen': {
+    warmup: [
+      ['chorus', 'KOR-us', 'A repeated part of a song or a group singing together.'],
+      ['cinema', 'SIN-uh-muh', 'The art or industry of making motion pictures.'],
+      ['rhythm', 'RITH-um', 'A repeated pattern of sound or movement.'],
+      ['trailer', 'TRAY-ler', 'A short preview of a film or program.'],
+      ['melody', 'MEL-uh-dee', 'A sequence of musical notes forming a tune.'],
+    ],
+    tricky: [
+      ['silhouette', 'sil-oo-ET', 'A dark outline of a person or object against a lighter background.'],
+      ['crescendo', 'kruh-SHEN-doh', 'A gradual increase in loudness or intensity.'],
+      ['choreography', 'kor-ee-OG-ruh-fee', 'The design of a sequence of dance movements.'],
+      ['repertoire', 'REP-er-twar', 'The works a performer is prepared to present.'],
+      ['cinematography', 'sin-uh-muh-TOG-ruh-fee', 'The art of camera work and lighting in film.'],
+    ],
+    menace: [
+      ['diegetic', 'dye-uh-JET-ik', 'Existing within the fictional world of a story.'],
+      ['foley', 'FOH-lee', 'Sound effects created and recorded to match action on screen.'],
+      ['proscenium', 'proh-SEE-nee-um', 'The frame separating a stage from an auditorium.'],
+      ['sprechstimme', 'SHPREKH-shtim-uh', 'A vocal style between speaking and singing.'],
+      ['onomatopoeia', 'on-uh-mat-uh-PEE-uh', 'A word formed to imitate the sound it describes.'],
+    ],
+  },
+  'Words That Sound Fake': {
+    warmup: [
+      ['gobbledegook', 'GOB-uhl-dee-gook', 'Language that is meaningless or hard to understand.'],
+      ['kerfuffle', 'ker-FUF-uhl', 'A commotion or fuss.'],
+      ['bamboozle', 'bam-BOO-zuhl', 'To deceive or confuse someone.'],
+      ['nincompoop', 'NIN-kum-poop', 'A foolish or silly person.'],
+      ['hullabaloo', 'hul-uh-buh-LOO', 'A loud commotion or public fuss.'],
+    ],
+    tricky: [
+      ['flibbertigibbet', 'FLIB-er-tee-jib-it', 'A frivolous or excessively talkative person.'],
+      ['persnickety', 'per-SNIK-uh-tee', 'Overly particular about small details.'],
+      ['absquatulate', 'ab-SKWOCH-uh-layt', 'To leave abruptly.'],
+      ['collywobbles', 'KOL-ee-wob-uhlz', 'A nervous feeling in the stomach.'],
+      ['skedaddle', 'skih-DAD-uhl', 'To depart quickly or hurriedly.'],
+    ],
+    menace: [
+      ['antediluvian', 'an-tee-dih-LOO-vee-un', 'Extremely old-fashioned or from before the biblical flood.'],
+      ['callipygian', 'kal-uh-PIJ-ee-un', 'Having beautifully shaped buttocks.'],
+      ['defenestration', 'dee-fen-uh-STRAY-shun', 'The act of throwing someone or something out of a window.'],
+      ['sesquipedalian', 'ses-kwi-pih-DAY-lee-un', 'Characterized by the use of long words.'],
+      ['zeugma', 'ZOOG-muh', 'A figure of speech in which one word governs two others differently.'],
+    ],
+  },
+}
+
+const origins: Record<Exclude<Category, "Dealer's Choice">, string> = {
+  'Bay & Beyond': 'Drawn from the language of place, landscape, and city life.',
+  'Internet Brain': 'Part of the evolving vocabulary of technology and online culture.',
+  'Passport Stamps': 'A well-traveled word adopted or shaped across languages.',
+  'Sound & Screen': 'From the vocabulary of music, performance, film, or production.',
+  'Words That Sound Fake': 'A real word with a playful history and an unlikely sound.',
+}
+
+const coreWords: WordCard[] = Object.entries(seeds).flatMap(([category, levels]) =>
+  Object.entries(levels).flatMap(([difficulty, cards]) =>
+    cards.map(([word, pronunciation, definition]) => ({
+      id: `${category.toLowerCase().replace(/[^a-z]+/g, '-')}-${difficulty}-${word.toLowerCase()}`,
+      word,
+      pronunciation,
+      definition,
+      origin: origins[category as Exclude<Category, "Dealer's Choice">],
+      sentence: `The room went quiet as tonight's speller considered ___.`,
+      category: category as Exclude<Category, "Dealer's Choice">,
+      difficulty: difficulty as Difficulty,
+    })),
+  ),
+)
+
+type ExtraSeed = readonly [Exclude<Category, "Dealer's Choice">, Difficulty, string, string, string]
+const extras: readonly ExtraSeed[] = [
+  ['Bay & Beyond','warmup','canyon','KAN-yun','A deep valley with steep sides.'],
+  ['Bay & Beyond','warmup','marina','muh-REE-nuh','A harbor designed for small boats.'],
+  ['Bay & Beyond','warmup','prairie','PRAIR-ee','A broad area of open grassland.'],
+  ['Bay & Beyond','warmup','summit','SUM-it','The highest point of a hill or mountain.'],
+  ['Bay & Beyond','warmup','trolley','TROL-ee','A streetcar powered by electricity.'],
+  ['Bay & Beyond','tricky','chaparral','shap-uh-RAL','Dense scrub vegetation common in coastal California.'],
+  ['Bay & Beyond','tricky','boulevard','BOOL-uh-vard','A wide city street, often lined with trees.'],
+  ['Bay & Beyond','tricky','aquifer','AK-wuh-fer','An underground layer that carries groundwater.'],
+  ['Bay & Beyond','tricky','esplanade','ES-pluh-nayd','A broad walkway beside water.'],
+  ['Bay & Beyond','tricky','switchback','SWICH-bak','A road or trail that climbs in sharp turns.'],
+  ['Bay & Beyond','menace','geomorphology','jee-oh-mor-FOL-uh-jee','The study of landforms and how they develop.'],
+  ['Bay & Beyond','menace','Mediterranean','med-ih-tuh-RAY-nee-un','Relating to the sea between Europe, Africa, and Asia.'],
+  ['Bay & Beyond','menace','bioluminescence','bye-oh-loo-muh-NES-ens','Light produced by a living organism.'],
+  ['Bay & Beyond','menace','circumnavigation','sur-kum-nav-ih-GAY-shun','Travel all the way around a place or the world.'],
+  ['Bay & Beyond','menace','ecclesiastical','ih-klee-zee-AS-tih-kuhl','Relating to a church or its clergy.'],
+  ['Internet Brain','warmup','widget','WIJ-it','A small interactive element in a digital interface.'],
+  ['Internet Brain','warmup','router','ROW-ter','A device that directs network traffic.'],
+  ['Internet Brain','warmup','stream','streem','To send or receive media continuously over a network.'],
+  ['Internet Brain','warmup','avatar','AV-uh-tar','A digital representation of a user.'],
+  ['Internet Brain','warmup','cursor','KUR-ser','A movable indicator on a computer display.'],
+  ['Internet Brain','tricky','repository','rih-POZ-uh-tor-ee','A place where digital files and their history are stored.'],
+  ['Internet Brain','tricky','bandwidth','BAND-width','The capacity of a connection to carry data.'],
+  ['Internet Brain','tricky','protocol','PROH-tuh-kol','A set of rules for exchanging information.'],
+  ['Internet Brain','tricky','recursive','rih-KUR-siv','Defined in terms of itself or a repeated process.'],
+  ['Internet Brain','tricky','parameter','puh-RAM-uh-ter','A value that sets a condition or limit.'],
+  ['Internet Brain','menace','cryptocurrency','KRIP-toh-kur-en-see','Digital currency secured through cryptographic methods.'],
+  ['Internet Brain','menace','containerization','kun-tay-ner-ih-ZAY-shun','Packaging software with everything it needs to run.'],
+  ['Internet Brain','menace','parallelization','par-uh-lel-ih-ZAY-shun','Dividing work so tasks can run at the same time.'],
+  ['Internet Brain','menace','nondeterministic','non-dih-tur-mih-NIS-tik','Not guaranteed to produce one predictable result.'],
+  ['Internet Brain','menace','polymorphism','pol-ee-MOR-fiz-um','The ability of one interface to represent different forms.'],
+  ['Passport Stamps','warmup','paprika','PAP-rih-kuh','A red spice made from dried peppers.'],
+  ['Passport Stamps','warmup','fiesta','fee-ES-tuh','A festival or celebration.'],
+  ['Passport Stamps','warmup','typhoon','tye-FOON','A powerful tropical cyclone in the western Pacific.'],
+  ['Passport Stamps','warmup','yogurt','YOH-gert','A cultured dairy food made by fermentation.'],
+  ['Passport Stamps','warmup','bungalow','BUNG-guh-loh','A low house, usually with one main story.'],
+  ['Passport Stamps','tricky','bruschetta','broo-SKET-uh','Grilled bread topped with garlic and other ingredients.'],
+  ['Passport Stamps','tricky','croissant','kwah-SAHN','A flaky crescent-shaped pastry.'],
+  ['Passport Stamps','tricky','gnocchi','NYOH-kee','Small Italian dumplings usually made with potato.'],
+  ['Passport Stamps','tricky','sriracha','sih-RAH-chuh','A hot sauce made with chili peppers and garlic.'],
+  ['Passport Stamps','tricky','ukulele','yoo-kuh-LAY-lee','A small four-stringed instrument associated with Hawaii.'],
+  ['Passport Stamps','menace','hors d’oeuvre','or-DURV','A small savory dish served before a meal.'],
+  ['Passport Stamps','menace','churrascaria','shoo-hahs-kuh-REE-uh','A restaurant specializing in Brazilian grilled meat.'],
+  ['Passport Stamps','menace','bildungsroman','BIL-doongs-roh-mahn','A novel about a person’s formative years and growth.'],
+  ['Passport Stamps','menace','accoutrement','uh-KOO-truh-mahn','An additional item of dress or equipment.'],
+  ['Passport Stamps','menace','sprezzatura','spret-suh-TOOR-uh','Studied carelessness that makes skill look effortless.'],
+  ['Sound & Screen','warmup','ballad','BAL-ud','A song or poem that tells a story.'],
+  ['Sound & Screen','warmup','camera','KAM-er-uh','A device for recording still or moving images.'],
+  ['Sound & Screen','warmup','encore','ON-kor','An additional performance requested by an audience.'],
+  ['Sound & Screen','warmup','script','skript','The written text of a play, film, or broadcast.'],
+  ['Sound & Screen','warmup','tempo','TEM-poh','The speed at which music is performed.'],
+  ['Sound & Screen','tricky','montage','mon-TAHZH','A sequence of images edited together to condense information.'],
+  ['Sound & Screen','tricky','symphony','SIM-fuh-nee','An extended orchestral composition.'],
+  ['Sound & Screen','tricky','soliloquy','suh-LIL-uh-kwee','A speech in which a character voices thoughts aloud.'],
+  ['Sound & Screen','tricky','vaudeville','VAWD-vil','A stage entertainment made of varied short acts.'],
+  ['Sound & Screen','tricky','acoustics','uh-KOO-stiks','The qualities that determine how sound behaves in a space.'],
+  ['Sound & Screen','menace','mise-en-scène','meez-on-SEN','The arrangement of scenery and performers within a scene.'],
+  ['Sound & Screen','menace','contrapposto','kon-truh-POS-toh','A pose with weight resting mainly on one leg.'],
+  ['Sound & Screen','menace','synchronicity','sin-kruh-NIS-uh-tee','The meaningful coincidence of events.'],
+  ['Sound & Screen','menace','phantasmagoria','fan-taz-muh-GOR-ee-uh','A dreamlike sequence of real or imagined images.'],
+  ['Sound & Screen','menace','prestidigitation','pres-tih-dij-ih-TAY-shun','Magic performed with quick movements of the hands.'],
+  ['Words That Sound Fake','warmup','thingamajig','THING-uh-muh-jig','A person or object whose name is forgotten.'],
+  ['Words That Sound Fake','warmup','whippersnapper','WIP-er-snap-er','A young and overconfident person.'],
+  ['Words That Sound Fake','warmup','lollygag','LOL-ee-gag','To spend time in an aimless or lazy way.'],
+  ['Words That Sound Fake','warmup','canoodle','kuh-NOO-duhl','To cuddle or behave affectionately.'],
+  ['Words That Sound Fake','warmup','ragamuffin','RAG-uh-muf-in','A person in ragged or untidy clothes.'],
+  ['Words That Sound Fake','tricky','bumbershoot','BUM-ber-shoot','An old-fashioned word for an umbrella.'],
+  ['Words That Sound Fake','tricky','discombobulate','dis-kum-BOB-yuh-layt','To confuse or unsettle someone.'],
+  ['Words That Sound Fake','tricky','flummox','FLUM-uks','To bewilder or perplex.'],
+  ['Words That Sound Fake','tricky','hornswoggle','HORN-swog-uhl','To trick or deceive.'],
+  ['Words That Sound Fake','tricky','widdershins','WID-er-shinz','In a direction contrary to the sun or counterclockwise.'],
+  ['Words That Sound Fake','menace','quomodocunquize','kwoh-moh-doh-KUN-kwize','To make money by any possible means.'],
+  ['Words That Sound Fake','menace','ultracrepidarian','ul-truh-krep-ih-DAIR-ee-un','A person who gives opinions beyond their expertise.'],
+  ['Words That Sound Fake','menace','borborygmus','bor-buh-RIG-mus','A rumbling noise made by gas moving through the intestines.'],
+  ['Words That Sound Fake','menace','psithurism','SITH-yuh-riz-um','The sound of wind rustling through leaves.'],
+  ['Words That Sound Fake','menace','xylophagous','zye-LOF-uh-gus','Feeding on or boring into wood.'],
+]
+
+const extraWords: WordCard[] = extras.map(([category, difficulty, word, pronunciation, definition]) => ({
+  id: `${category.toLowerCase().replace(/[^a-z]+/g, '-')}-${difficulty}-${word.toLowerCase().replace(/[^a-z]+/g, '-')}`,
+  word,
+  pronunciation,
+  definition,
+  origin: origins[category],
+  sentence: `The room went quiet as tonight's speller considered ___.`,
+  category,
+  difficulty,
+}))
+
+export const WORD_BANK: WordCard[] = [...coreWords, ...extraWords]
+
+export function getWord(id: string | null): WordCard | undefined {
+  return WORD_BANK.find((card) => card.id === id)
+}

@@ -9,6 +9,50 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    function validSpellingRoom(roomCode) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'roomCode', 'title', 'hostId', 'status', 'players', 'playerOrder',
+          'turnIndex', 'currentTurn', 'history', 'usedWordIds', 'revision',
+          'createdAt', 'updatedAt'
+        ])
+        && data.roomCode == roomCode
+        && data.roomCode.size() == 4
+        && data.title == 'Spelling bee game night'
+        && data.hostId is string
+        && data.hostId.size() <= 80
+        && (data.status == 'lobby' || data.status == 'playing'
+          || data.status == 'finished' || data.status == 'closed')
+        && data.players is list
+        && data.players.size() >= 1
+        && data.players.size() <= 10
+        && data.playerOrder is list
+        && data.playerOrder.size() == data.players.size()
+        && data.turnIndex is int
+        && data.turnIndex >= 0
+        && data.history is list
+        && data.history.size() <= 100
+        && data.usedWordIds is list
+        && data.usedWordIds.size() <= 100
+        && data.revision is int
+        && data.revision >= 0
+        && data.createdAt is int
+        && data.updatedAt is int;
+    }
+
+    // A casual, no-account party game. The strict shape and bounds keep this
+    // collection isolated; the host remains the authority in the client flow.
+    match /spellingRooms/{roomCode} {
+      allow read: if true;
+      allow create: if validSpellingRoom(roomCode);
+      allow update: if validSpellingRoom(roomCode)
+        && request.resource.data.roomCode == resource.data.roomCode
+        && request.resource.data.hostId == resource.data.hostId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.revision == resource.data.revision + 1;
+      allow delete: if false;
+    }
+
     function isEraId(eraId) {
       return eraId == 'era-1' || eraId == 'era-2' || eraId == 'era-3';
     }
