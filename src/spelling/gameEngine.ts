@@ -1,7 +1,11 @@
 import type { Category, CurrentTurn, Difficulty, Player, SpellingRoom, WordCard } from './types'
 
 export const TOTAL_ROUNDS = 3
-export const ROUND_LABELS = ['Warm-up', 'Tricky', 'Menace'] as const
+export const ROUND_LABELS = [
+  'Familiar with a wrinkle',
+  'Multiple plausible spellings',
+  'The pronunciation betrays you',
+] as const
 
 export function roundForTurn(turnIndex: number, playerCount: number): number {
   return Math.min(TOTAL_ROUNDS, Math.floor(turnIndex / Math.max(1, playerCount)) + 1)

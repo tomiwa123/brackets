@@ -86,7 +86,7 @@ function Landing({ onEnter }: { onEnter: (code: string) => void }) {
       <section className="hero-card">
         <p className="eyebrow"><Sparkles size={15} /> Oakland · game night edition</p>
         <h1>Say it.<br /><em>Spell it.</em><br />Own the room.</h1>
-        <p className="hero-copy">Three rounds. Six categories. No eliminations. Just smart words, good friends, and a little bit of menace.</p>
+        <p className="hero-copy">Three rounds. Five themes plus Dealer’s Choice. No eliminations. Just smart words, good friends, and a little bit of menace.</p>
         {mode === 'home' ? (
           <div className="hero-actions">
             <button className="primary-button" onClick={() => setMode('create')}>Host a game <span>→</span></button>
@@ -104,9 +104,9 @@ function Landing({ onEnter }: { onEnter: (code: string) => void }) {
         )}
       </section>
       <div className="round-strip">
-        <div><b>01</b><span>Warm-up</span><small>1 point</small></div>
-        <div><b>02</b><span>Tricky</span><small>2 points</small></div>
-        <div><b>03</b><span>Menace</span><small>3 points</small></div>
+        <div><b>01</b><span>Familiar with a wrinkle</span><small>1 point</small></div>
+        <div><b>02</b><span>Multiple plausible spellings</span><small>2 points</small></div>
+        <div><b>03</b><span>Pronunciation betrays you</span><small>3 points</small></div>
       </div>
     </main>
   )
@@ -168,7 +168,7 @@ const categoryNotes: Record<Category, string> = {
   'Internet Brain': 'Tech & online culture',
   'Passport Stamps': 'Well-traveled words',
   'Sound & Screen': 'Music, film & performance',
-  'Words That Sound Fake': 'Real words. Allegedly.',
+  'Science & Nature': 'The living and physical world',
   "Dealer's Choice": 'Let fate decide',
 }
 

@@ -54,10 +54,10 @@ The categories should feel native to a young, social, globally minded Bay Area f
 2. **Internet Brain** — tech, online culture, design, gaming, and words people encounter on screens but rarely spell aloud.
 3. **Passport Stamps** — words borrowed across languages, global food/place/cultural vocabulary, and satisfyingly surprising etymologies.
 4. **Sound & Screen** — music, film, performance, media, and production vocabulary; broad rather than celebrity trivia.
-5. **Words That Sound Fake** — delightful real words, deceptive pronunciations, odd letter patterns, and maximum nerdy energy.
+5. **Science & Nature** — the living world, Earth, and the wider universe, calibrated from familiar concepts to deceptive technical spellings.
 6. **Dealer’s Choice** — a balanced wildcard across the entire bank for players who want fate to decide.
 
-Category affects flavor, not raw difficulty. Each category must contain a balanced supply of Warm-up, Tricky, and Menace words. Avoid proper names, dialect policing, culturally loaded “gotcha” words, and words whose accepted spelling varies without the card explicitly allowing variants.
+Category affects flavor, not raw difficulty. Each category must contain a balanced supply across the three rounds. Round 1 is **Familiar with a wrinkle** (recognizable, with one small uncertainty); Round 2 is **Multiple plausible spellings** (silent letters, unusual clusters, misleading vowels, or borrowed patterns); Round 3 is **The pronunciation betrays you** (the spoken form conceals or misdirects major parts of the spelling). Avoid proper names, dialect policing, culturally loaded “gotcha” words, and words whose accepted spelling varies without the card explicitly allowing variants.
 
 ## 5. Word cards and content quality
 
@@ -72,7 +72,7 @@ Each curated word record contains:
 - content notes, alternate pronunciation, and source references;
 - a stable ID so a word is not repeated within a room.
 
-Launch with **at least 270 reviewed words**: 15 words × 3 difficulty levels × 6 categories. That safely supports ten players, three rounds, skips, and repeated game nights. Store this initial bank in version-controlled JSON rather than generating words live. Curated content makes difficulty, pronunciation, definitions, and origins dependable and lets the game work if an AI provider is unavailable.
+The current curated bank contains **180 reviewed words**: 12 words × 3 difficulty levels × 5 themed categories. Dealer’s Choice draws across those themes. Store the bank in version control rather than generating words live. Curated content makes difficulty, pronunciation, definitions, and origins dependable and lets the game work if an AI provider is unavailable.
 
 Difficulty should be editorial, based on pronunciation/spelling mismatch, uncommon letter patterns, length, familiarity, and number of plausible wrong spellings. Length alone is not difficulty. A small internal validation script should reject missing fields, duplicate spellings, duplicate IDs, invalid category/difficulty values, and example sentences that accidentally contain the answer.
 

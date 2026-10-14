@@ -3,7 +3,7 @@ export const CATEGORIES = [
   'Internet Brain',
   'Passport Stamps',
   'Sound & Screen',
-  'Words That Sound Fake',
+  'Science & Nature',
   "Dealer's Choice",
 ] as const
 
