@@ -95,6 +95,7 @@ function eraMetadata(era: EraData) {
     startDate: era.startDate,
     durationDays: era.durationDays,
     status: era.status,
+    checklistId: era.checklistId,
     ...(era.retiredOn ? { retiredOn: era.retiredOn } : {}),
     updatedAt: serverTimestamp(),
   };

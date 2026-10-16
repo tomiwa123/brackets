@@ -51,6 +51,7 @@ try {
       startDate: '2026-07-27',
       durationDays: 90,
       status: 'archived',
+      checklistId: 'legacy',
       retiredOn: '2026-08-22',
       updatedAt: serverTimestamp(),
     }),
@@ -66,6 +67,7 @@ try {
       startDate: '2026-08-23',
       durationDays: 90,
       status: 'archived',
+      checklistId: 'legacy',
       retiredOn: '2026-09-13',
       updatedAt: serverTimestamp(),
     }),
@@ -78,12 +80,36 @@ try {
       id: 'era-3',
       name: 'Era 3',
       description: 'Third attempt',
-      startDate: '2026-10-10',
+      startDate: '2026-10-15',
       durationDays: 90,
       status: 'active',
+      checklistId: 'era-3',
       updatedAt: serverTimestamp(),
     }),
   );
+  await assertFails(setDoc(era1Reference, {
+    schemaVersion: 2,
+    id: 'era-1',
+    name: 'Era 1',
+    description: 'First attempt',
+    startDate: '2026-07-27',
+    durationDays: 90,
+    status: 'archived',
+    retiredOn: '2026-08-22',
+    checklistId: 'era-3',
+    updatedAt: serverTimestamp(),
+  }));
+  await assertFails(setDoc(era3Reference, {
+    schemaVersion: 2,
+    id: 'era-3',
+    name: 'Era 3',
+    description: 'Third attempt',
+    startDate: '2026-10-15',
+    durationDays: 90,
+    status: 'active',
+    checklistId: 'legacy',
+    updatedAt: serverTimestamp(),
+  }));
 
   const backupReference = doc(
     firestore,
@@ -164,7 +190,7 @@ try {
   await assertFails(deleteDoc(spellingReference));
 
   await assertFails(setDoc(doc(firestore, 'unrelated/document'), { open: true }));
-  console.log('Firestore rules: 20 assertions passed.');
+  console.log('Firestore rules: 22 assertions passed.');
 } finally {
   await environment.cleanup();
 }

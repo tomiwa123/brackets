@@ -1,4 +1,4 @@
-import { PROGRAM, type ChecklistItem } from './program';
+import { type ChecklistItem } from './program';
 import {
   dayStr,
   daysBetween,
@@ -9,7 +9,6 @@ import {
   type RecordMap,
 } from './storage';
 
-const DAILY_P0 = PROGRAM.items.filter((item) => item.cadence === 'daily' && item.priority === 'P0');
 const STREAK_THRESHOLD = 0.7;
 
 export function shiftDay(day: string, delta: number): string {
@@ -55,19 +54,27 @@ export function isItemChecked(records: RecordMap, item: ChecklistItem, day: stri
   return Boolean(records[recordKeyFor(item, day)]?.completed[item.id]);
 }
 
-export function dailyProgress(records: RecordMap, day: string): number {
-  if (DAILY_P0.length === 0) return 0;
-  return DAILY_P0.filter((item) => isItemChecked(records, item, day)).length / DAILY_P0.length;
+export function dailyProgress(records: RecordMap, day: string, items: readonly ChecklistItem[]): number {
+  const dailyItems = items.filter(
+    (item) => item.cadence === 'daily' && (item.priority === 'P00' || item.priority === 'P0'),
+  );
+  if (dailyItems.length === 0) return 0;
+  return dailyItems.filter((item) => isItemChecked(records, item, day)).length / dailyItems.length;
 }
 
-export function isP0Complete(records: RecordMap, day: string): boolean {
-  return dailyProgress(records, day) >= STREAK_THRESHOLD;
+export function isChecklistComplete(records: RecordMap, day: string, items: readonly ChecklistItem[]): boolean {
+  return dailyProgress(records, day, items) >= STREAK_THRESHOLD;
 }
 
-export function streakAtDay(records: RecordMap, day: string, currentDayIsInProgress: boolean): number {
-  let cursor = currentDayIsInProgress && !isP0Complete(records, day) ? shiftDay(day, -1) : day;
+export function streakAtDay(
+  records: RecordMap,
+  day: string,
+  currentDayIsInProgress: boolean,
+  items: readonly ChecklistItem[],
+): number {
+  let cursor = currentDayIsInProgress && !isChecklistComplete(records, day, items) ? shiftDay(day, -1) : day;
   let count = 0;
-  while (isP0Complete(records, cursor)) {
+  while (isChecklistComplete(records, cursor, items)) {
     count += 1;
     cursor = shiftDay(cursor, -1);
   }

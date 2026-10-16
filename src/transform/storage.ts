@@ -1,6 +1,6 @@
 // Versioned local persistence for the transformation program.
 //
-import { PROGRAM } from './program';
+import { PROGRAM, type ChecklistId } from './program';
 
 // Firestore is the canonical cross-device store, while localStorage remains a
 // synchronous safety net and the source of the original v1 history. Migration
@@ -29,6 +29,7 @@ export interface EraData {
   startDate: string;
   durationDays: number;
   status: EraStatus;
+  checklistId: ChecklistId;
   retiredOn?: string;
   records: RecordMap;
 }
@@ -109,6 +110,7 @@ export function isTransformDataV2(value: unknown): value is TransformDataV2 {
       typeof candidate.startDate === 'string' &&
       typeof candidate.durationDays === 'number' &&
       (candidate.status === 'active' || candidate.status === 'archived') &&
+      (candidate.checklistId === undefined || candidate.checklistId === 'legacy' || candidate.checklistId === 'era-3') &&
       (candidate.retiredOn === undefined || typeof candidate.retiredOn === 'string') &&
       isRecordMap(candidate.records)
     );
@@ -196,8 +198,12 @@ export function loadLocalTransformData(storageBackend: Storage = localStorage): 
           if (!parsed.eras[era.id]) {
             parsed.eras[era.id] = { ...era, durationDays: PROGRAM.durationDays, records: {} };
           } else {
+            parsed.eras[era.id].name = era.name;
+            parsed.eras[era.id].description = era.description;
+            parsed.eras[era.id].startDate = era.startDate;
             parsed.eras[era.id].status = era.status;
             parsed.eras[era.id].retiredOn = era.retiredOn;
+            parsed.eras[era.id].checklistId = era.checklistId;
           }
         }
         parsed.activeEraId = PROGRAM.activeEraId;

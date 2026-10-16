@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
-import { PROGRAM, PRIORITY_META, type ChecklistItem, type Priority } from './program';
+import { checklistForEra, PRIORITY_META, type ChecklistItem, type Priority } from './program';
 import { useTransformStore } from './store';
 
-const PRIORITY_ORDER: Priority[] = ['P0', 'P1', 'P2'];
+const PRIORITY_ORDER: Priority[] = ['P00', 'P0', 'P1', 'P2'];
 
 function Row({ item }: { item: ChecklistItem }) {
   const isChecked = useTransformStore((s) => s.isChecked(item));
@@ -48,9 +48,11 @@ function Row({ item }: { item: ChecklistItem }) {
 }
 
 export function DayChecklist() {
+  const selectedEraId = useTransformStore((state) => state.selectedEraId);
+  const items = checklistForEra(selectedEraId);
   const groups = PRIORITY_ORDER.map((p) => ({
     priority: p,
-    items: PROGRAM.items.filter((i) => i.priority === p),
+    items: items.filter((i) => i.priority === p),
   })).filter((g) => g.items.length > 0);
 
   return (
@@ -60,7 +62,9 @@ export function DayChecklist() {
           <div className="flex items-baseline gap-2">
             <span
               className={`rounded-md px-1.5 py-0.5 text-xs font-black ${
-                group.priority === 'P0'
+                group.priority === 'P00'
+                  ? 'bg-violet-400/15 text-violet-300'
+                  : group.priority === 'P0'
                   ? 'bg-rose-400/15 text-rose-300'
                   : group.priority === 'P1'
                   ? 'bg-amber-400/15 text-amber-300'

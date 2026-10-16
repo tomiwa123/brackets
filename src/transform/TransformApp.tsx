@@ -13,7 +13,7 @@ import {
   LogOut,
   Menu,
 } from 'lucide-react';
-import { PROGRAM } from './program';
+import { checklistForEra, PROGRAM } from './program';
 import { useTransformStore } from './store';
 import {
   dailyProgress,
@@ -116,17 +116,18 @@ export function TransformApp() {
   const era = data.eras[selectedEraId];
   const today = dayStr();
   const records = era.records;
+  const checklist = checklistForEra(era.id);
   const programDay = eraDayNumber(era, activeDay);
-  const progress = useMemo(() => dailyProgress(records, activeDay), [records, activeDay]);
+  const progress = useMemo(() => dailyProgress(records, activeDay, checklist), [records, activeDay, checklist]);
   const note = records[activeDay]?.note ?? '';
   const archived = era.status === 'archived';
   const readOnly = archived || recoveryBlocked;
   const hasEntry = hasMeaningfulRecord(records[activeDay]);
 
   const streak = useMemo(() => {
-    if (archived) return streakAtDay(records, activeDay, false);
-    return streakAtDay(records, today, true);
-  }, [activeDay, archived, records, today]);
+    if (archived) return streakAtDay(records, activeDay, false, checklist);
+    return streakAtDay(records, today, true, checklist);
+  }, [activeDay, archived, checklist, records, today]);
 
   if (!unlocked) return <PassphraseGate />;
 

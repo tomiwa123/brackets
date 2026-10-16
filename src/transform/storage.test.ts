@@ -17,12 +17,12 @@ import {
   dayForEraOrdinal,
   eraDayNumber,
   eraProgramEnd,
-  isP0Complete,
+  isChecklistComplete,
   lastRecordedDayNumber,
   recordKeyFor,
   streakAtDay,
 } from './eras';
-import { PROGRAM } from './program';
+import { checklistForEra, PROGRAM } from './program';
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
@@ -199,12 +199,13 @@ describe('era navigation and summaries', () => {
   });
 
   it('keeps period keys scoped by era', () => {
-    const weekly = { ...PROGRAM.items[0], cadence: 'weekly' as const };
+    const weekly = { ...checklistForEra(ERA_1_ID)[0], cadence: 'weekly' as const };
     expect(recordKeyFor(weekly, '2026-08-23')).toBe('2026-W34');
   });
 
   it('keeps the 70% P0 threshold and does not break a streak during an unfinished current day', () => {
-    const p0Ids = PROGRAM.items.filter((item) => item.priority === 'P0').map((item) => item.id);
+    const legacyItems = checklistForEra(ERA_2_ID);
+    const p0Ids = legacyItems.filter((item) => item.priority === 'P0').map((item) => item.id);
     const records: RecordMap = {
       '2026-08-23': record('2026-08-23', {
         completed: Object.fromEntries(p0Ids.slice(0, 7).map((id) => [id, true])),
@@ -212,8 +213,39 @@ describe('era navigation and summaries', () => {
       '2026-08-24': record('2026-08-24'),
     };
 
-    expect(dailyProgress(records, '2026-08-23')).toBeCloseTo(7 / 9);
-    expect(isP0Complete(records, '2026-08-23')).toBe(true);
-    expect(streakAtDay(records, '2026-08-24', true)).toBe(1);
+    expect(dailyProgress(records, '2026-08-23', legacyItems)).toBeCloseTo(7 / 9);
+    expect(isChecklistComplete(records, '2026-08-23', legacyItems)).toBe(true);
+    expect(streakAtDay(records, '2026-08-24', true, legacyItems)).toBe(1);
+  });
+
+  it('keeps historical wording immutable and applies the new checklist only to Era 3', () => {
+    const legacyItems = checklistForEra(ERA_1_ID);
+    const era3Items = checklistForEra(ERA_3_ID);
+
+    expect(PROGRAM.eras.find((era) => era.id === ERA_3_ID)?.startDate).toBe('2026-10-15');
+    expect(legacyItems).toHaveLength(13);
+    expect(legacyItems.map((item) => item.label)).toContain('Nighttime routine');
+    expect(era3Items.map((item) => item.label)).toEqual([
+      'hydration', 'meditation', 'french', 'models',
+      'spiritual', 'skincare', 'journaling/tribe', 'reading', 'exercise',
+    ]);
+    expect(era3Items.map((item) => item.priority)).toEqual([
+      'P00', 'P00', 'P00', 'P00', 'P0', 'P0', 'P0', 'P0', 'P0',
+    ]);
+    expect(era3Items.some((item) => item.priority === 'P1')).toBe(false);
+  });
+
+  it('uses all nine Era 3 items for the 70% streak threshold', () => {
+    const items = checklistForEra(ERA_3_ID);
+    const records: RecordMap = {
+      '2026-10-15': record('2026-10-15', {
+        completed: Object.fromEntries(items.slice(0, 7).map((item) => [item.id, true])),
+      }),
+      '2026-10-16': record('2026-10-16'),
+    };
+
+    expect(dailyProgress(records, '2026-10-15', items)).toBeCloseTo(7 / 9);
+    expect(isChecklistComplete(records, '2026-10-15', items)).toBe(true);
+    expect(streakAtDay(records, '2026-10-16', true, items)).toBe(1);
   });
 });

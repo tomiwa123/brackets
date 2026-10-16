@@ -84,6 +84,7 @@ service cloud.firestore {
           'startDate',
           'durationDays',
           'status',
+          'checklistId',
           'retiredOn',
           'updatedAt'
         ])
@@ -96,6 +97,8 @@ service cloud.firestore {
         && data.startDate is string
         && data.durationDays == 90
         && (data.status == 'active' || data.status == 'archived')
+        && (((eraId == 'era-1' || eraId == 'era-2') && data.checklistId == 'legacy')
+          || (eraId == 'era-3' && data.checklistId == 'era-3'))
         && (!('retiredOn' in data) || data.retiredOn is string)
         && data.updatedAt is timestamp;
     }
