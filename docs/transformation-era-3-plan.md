@@ -30,6 +30,7 @@ Era 3 has no P1 section. The historical P1 items remain available in Era 1 and E
 - The active era, start date, status, and checklist assignment are configuration-owned, so stale browser metadata cannot restore either earlier false start.
 - Firestore metadata includes `checklistId`; rules accept only `legacy` for Era 1–2 and `era-3` for Era 3.
 - The 70% streak rule remains unchanged. It uses the nine P0 items for historical eras and all nine P00/P0 items for Era 3.
+- Streak calculation is bounded by the configured era start, so records from an earlier false start cannot carry into the reset.
 
 ## Verification
 

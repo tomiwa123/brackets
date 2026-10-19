@@ -125,9 +125,9 @@ export function TransformApp() {
   const hasEntry = hasMeaningfulRecord(records[activeDay]);
 
   const streak = useMemo(() => {
-    if (archived) return streakAtDay(records, activeDay, false, checklist);
-    return streakAtDay(records, today, true, checklist);
-  }, [activeDay, archived, checklist, records, today]);
+    if (archived) return streakAtDay(records, activeDay, false, checklist, era.startDate);
+    return streakAtDay(records, today, true, checklist, era.startDate);
+  }, [activeDay, archived, checklist, era.startDate, records, today]);
 
   if (!unlocked) return <PassphraseGate />;
 

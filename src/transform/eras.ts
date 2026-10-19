@@ -71,10 +71,11 @@ export function streakAtDay(
   day: string,
   currentDayIsInProgress: boolean,
   items: readonly ChecklistItem[],
+  startDay: string,
 ): number {
   let cursor = currentDayIsInProgress && !isChecklistComplete(records, day, items) ? shiftDay(day, -1) : day;
   let count = 0;
-  while (isChecklistComplete(records, cursor, items)) {
+  while (cursor >= startDay && isChecklistComplete(records, cursor, items)) {
     count += 1;
     cursor = shiftDay(cursor, -1);
   }

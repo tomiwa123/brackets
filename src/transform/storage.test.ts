@@ -215,7 +215,7 @@ describe('era navigation and summaries', () => {
 
     expect(dailyProgress(records, '2026-08-23', legacyItems)).toBeCloseTo(7 / 9);
     expect(isChecklistComplete(records, '2026-08-23', legacyItems)).toBe(true);
-    expect(streakAtDay(records, '2026-08-24', true, legacyItems)).toBe(1);
+    expect(streakAtDay(records, '2026-08-24', true, legacyItems, '2026-08-23')).toBe(1);
   });
 
   it('keeps historical wording immutable and applies the new checklist only to Era 3', () => {
@@ -238,6 +238,9 @@ describe('era navigation and summaries', () => {
   it('uses all nine Era 3 items for the 70% streak threshold', () => {
     const items = checklistForEra(ERA_3_ID);
     const records: RecordMap = {
+      '2026-10-17': record('2026-10-17', {
+        completed: Object.fromEntries(items.slice(0, 7).map((item) => [item.id, true])),
+      }),
       '2026-10-18': record('2026-10-18', {
         completed: Object.fromEntries(items.slice(0, 7).map((item) => [item.id, true])),
       }),
@@ -246,6 +249,18 @@ describe('era navigation and summaries', () => {
 
     expect(dailyProgress(records, '2026-10-18', items)).toBeCloseTo(7 / 9);
     expect(isChecklistComplete(records, '2026-10-18', items)).toBe(true);
-    expect(streakAtDay(records, '2026-10-19', true, items)).toBe(1);
+    expect(streakAtDay(records, '2026-10-19', true, items, '2026-10-18')).toBe(1);
+  });
+
+  it('does not carry a false-start streak across the configured Era 3 boundary', () => {
+    const items = checklistForEra(ERA_3_ID);
+    const records: RecordMap = {
+      '2026-10-17': record('2026-10-17', {
+        completed: Object.fromEntries(items.slice(0, 7).map((item) => [item.id, true])),
+      }),
+      '2026-10-18': record('2026-10-18'),
+    };
+
+    expect(streakAtDay(records, '2026-10-18', true, items, '2026-10-18')).toBe(0);
   });
 });
