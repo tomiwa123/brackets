@@ -84,7 +84,7 @@ export const PROGRAM: ProgramConfig = {
       status: 'archived', retiredOn: '2026-09-13', checklistId: 'legacy',
     },
     {
-      id: 'era-3', name: 'Era 3', description: 'Third attempt', startDate: '2026-10-15',
+      id: 'era-3', name: 'Era 3', description: 'Third attempt', startDate: '2026-10-18',
       status: 'active', checklistId: 'era-3',
     },
   ],
