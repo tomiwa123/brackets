@@ -23,8 +23,47 @@ describe('spelling word bank', () => {
       expect(card.word.length).toBeGreaterThan(1)
       expect(card.pronunciation.length).toBeGreaterThan(1)
       expect(card.definition.length).toBeGreaterThan(5)
-      expect(card.origin.length).toBeGreaterThan(5)
-      expect(card.sentence).not.toContain(card.word)
+      expect(card.origin.length).toBeGreaterThan(30)
+      expect(card.sentence.toLowerCase()).not.toContain(card.word.toLowerCase())
+      expect(card.sentence.match(/___/g)).toHaveLength(1)
+      expect(card.sentence.length).toBeGreaterThan(30)
     })
+  })
+
+  it('gives Team Showdown an exact 30% within-tier difficulty replacement', () => {
+    for (const difficulty of ['warmup', 'tricky', 'menace'] as const) {
+      const roundCards = WORD_BANK.filter((card) => card.difficulty === difficulty)
+      expect(roundCards.filter((card) => card.teamSelectionWeight === 0)).toHaveLength(18)
+      expect(roundCards.filter((card) => card.teamSelectionWeight === 1)).toHaveLength(24)
+      expect(roundCards.filter((card) => card.teamSelectionWeight === 2)).toHaveLength(18)
+
+      for (const category of ['Bay & Beyond', 'Internet Brain', 'Passport Stamps', 'Sound & Screen', 'Science & Nature'] as const) {
+        const categoryCards = roundCards.filter((card) => card.category === category)
+        expect(categoryCards.filter((card) => card.teamSelectionWeight === 0).length).toBeGreaterThanOrEqual(3)
+        expect(categoryCards.filter((card) => card.teamSelectionWeight === 2).length).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
+
+  it('uses a distinct, contextual example for every word', () => {
+    const sentences = WORD_BANK.map((card) => card.sentence)
+
+    expect(new Set(sentences).size).toBe(WORD_BANK.length)
+    expect(sentences).not.toContain("The room went quiet as tonight's speller considered ___.")
+  })
+
+  it('uses a distinct, word-specific origin for every word', () => {
+    const origins = WORD_BANK.map((card) => card.origin)
+    const answerLeaks = WORD_BANK
+      .filter((card) => card.origin.toLowerCase().includes(card.word.toLowerCase()))
+      .map((card) => card.word)
+
+    expect(new Set(origins).size).toBe(WORD_BANK.length)
+    expect(answerLeaks).toEqual([])
+    expect(origins).not.toContain('Drawn from the language of place, landscape, and city life.')
+    expect(origins).not.toContain('Part of the evolving vocabulary of technology and online culture.')
+    expect(origins).not.toContain('A well-traveled word adopted or shaped across languages.')
+    expect(origins).not.toContain('From the vocabulary of music, performance, film, or production.')
+    expect(origins).not.toContain('From the vocabulary of the living world, Earth, and the wider universe.')
   })
 })

@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { difficultyForRound, drawWord, eligibleTemporaryJudges, judgeIdForPlayer, nextTurn, pointsForRound, roundForTurn } from './gameEngine'
-import type { SpellingRoom, WordCard } from './types'
+import {
+  alternatingTeamOrder,
+  assignBalancedTeams,
+  createDefaultTeams,
+  difficultyForRound,
+  drawWord,
+  eligibleTemporaryJudges,
+  faceOffRepresentativeIds,
+  judgeIdForPlayer,
+  nextTurn,
+  pointsForRound,
+  remainingSaveTokens,
+  roundForTurn,
+  saveTokensForRound,
+} from './gameEngine'
+import type { Player, SpellingRoom, WordCard } from './types'
 
 describe('spelling game engine', () => {
   it('gives every player three ordered turns', () => {
@@ -14,7 +28,20 @@ describe('spelling game engine', () => {
       { id: 'a', word: 'pixel', pronunciation: 'PIK-suhl', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'warmup' },
       { id: 'b', word: 'cache', pronunciation: 'cash', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'warmup' },
     ]
-    expect(drawWord(cards, 'Internet Brain', 'warmup', ['a'], () => 0).id).toBe('b')
+    expect(drawWord(cards, 'Internet Brain', 'warmup', ['a'], { random: () => 0 }).id).toBe('b')
+  })
+
+  it('raises team difficulty within a round without changing the round tier', () => {
+    const cards: WordCard[] = [
+      { id: 'easy', word: 'pixel', pronunciation: 'PIK-suhl', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'warmup', teamSelectionWeight: 0 },
+      { id: 'middle', word: 'podcast', pronunciation: 'POD-kast', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'warmup', teamSelectionWeight: 1 },
+      { id: 'hard', word: 'thumbnail', pronunciation: 'THUM-nayl', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'warmup', teamSelectionWeight: 2 },
+      { id: 'later-round', word: 'cryptography', pronunciation: 'krip-TOG-ruh-fee', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'tricky', teamSelectionWeight: 2 },
+    ]
+
+    expect(drawWord(cards, 'Internet Brain', 'warmup', [], { mode: 'classic', random: () => 0 }).id).toBe('easy')
+    expect(drawWord(cards, 'Internet Brain', 'warmup', [], { mode: 'team', random: () => 0 }).id).toBe('middle')
+    expect(drawWord(cards, 'Internet Brain', 'warmup', [], { mode: 'team', random: () => 0.5 }).id).toBe('hard')
   })
 
   it('finishes only after all three rounds', () => {
@@ -80,5 +107,42 @@ describe('spelling game engine', () => {
 
     expect(nextTurn(room).currentTurn?.playerId).toBe('host')
     expect(nextTurn(room).currentTurn?.judgeId).toBe('player')
+  })
+
+  it('scales Save the Bee supply with each round', () => {
+    const team = { ...createDefaultTeams()[0], saveTokensUsed: [0, 1, 2] }
+    expect([1, 2, 3].map(saveTokensForRound)).toEqual([1, 2, 3])
+    expect([1, 2, 3].map((round) => remainingSaveTokens(team, round))).toEqual([1, 1, 1])
+  })
+
+  it('balances teams and alternates their rally turns', () => {
+    const players: Player[] = Array.from({ length: 5 }, (_, index) => ({
+      id: `p${index + 1}`,
+      name: `Player ${index + 1}`,
+      score: 0,
+      turns: 0,
+    }))
+    const assigned = assignBalancedTeams(players, () => 0.5)
+    const counts = assigned.reduce((result, player) => ({
+      ...result,
+      [player.teamId!]: (result[player.teamId!] ?? 0) + 1,
+    }), {} as Record<string, number>)
+    expect(Math.abs(counts.honey - counts.blue)).toBe(1)
+    expect(alternatingTeamOrder(assigned).map((id) => assigned.find((player) => player.id === id)?.teamId))
+      .toEqual(['honey', 'blue', 'honey', 'blue', 'honey'])
+    expect(alternatingTeamOrder(assigned, 'blue').map((id) => assigned.find((player) => player.id === id)?.teamId))
+      .toEqual(['blue', 'honey', 'blue', 'honey', 'honey'])
+  })
+
+  it('rotates one face-off representative from each team', () => {
+    const players: Player[] = [
+      { id: 'h1', name: 'Honey 1', score: 0, turns: 0, teamId: 'honey' },
+      { id: 'b1', name: 'Blue 1', score: 0, turns: 0, teamId: 'blue' },
+      { id: 'h2', name: 'Honey 2', score: 0, turns: 0, teamId: 'honey' },
+      { id: 'b2', name: 'Blue 2', score: 0, turns: 0, teamId: 'blue' },
+    ]
+    expect(faceOffRepresentativeIds(players, 0)).toEqual(['h1', 'b1'])
+    expect(faceOffRepresentativeIds(players, 1)).toEqual(['h2', 'b2'])
+    expect(faceOffRepresentativeIds(players, 2)).toEqual(['h1', 'b1'])
   })
 })

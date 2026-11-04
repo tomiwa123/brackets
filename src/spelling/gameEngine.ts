@@ -1,4 +1,4 @@
-import type { Category, CurrentTurn, Difficulty, Player, SpellingRoom, WordCard } from './types'
+import type { Category, CurrentTurn, Difficulty, GameMode, Player, SpellingRoom, Team, TeamId, WordCard } from './types'
 
 export const TOTAL_ROUNDS = 3
 export const ROUND_LABELS = [
@@ -6,6 +6,67 @@ export const ROUND_LABELS = [
   'Multiple plausible spellings',
   'The pronunciation betrays you',
 ] as const
+
+export const TEAM_IDS: TeamId[] = ['honey', 'blue']
+
+export function createDefaultTeams(): Team[] {
+  return [
+    { id: 'honey', name: 'Honeybees', color: '#d89b16', score: 0, saveTokensUsed: [0, 0, 0] },
+    { id: 'blue', name: 'Bluebells', color: '#3f6fa8', score: 0, saveTokensUsed: [0, 0, 0] },
+  ]
+}
+
+export function gameMode(room: Pick<SpellingRoom, 'mode'>): GameMode {
+  return room.mode ?? 'classic'
+}
+
+export function saveTokensForRound(round: number): number {
+  return pointsForRound(round)
+}
+
+export function remainingSaveTokens(team: Team, round: number): number {
+  const used = team.saveTokensUsed?.[round - 1] ?? 0
+  return Math.max(0, saveTokensForRound(round) - used)
+}
+
+export function teamForPlayer(room: Pick<SpellingRoom, 'players' | 'teams'>, playerId: string): Team | undefined {
+  const teamId = room.players.find((player) => player.id === playerId)?.teamId
+  return room.teams?.find((team) => team.id === teamId)
+}
+
+export function rankedTeams(teams: Team[]): Team[] {
+  return [...teams].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+}
+
+export function assignBalancedTeams(players: Player[], random = Math.random): Player[] {
+  const shuffled = [...players]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1))
+    ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+  }
+  const assignments = new Map(shuffled.map((player, index) => [player.id, TEAM_IDS[index % TEAM_IDS.length]]))
+  return players.map((player) => ({ ...player, teamId: assignments.get(player.id) }))
+}
+
+export function alternatingTeamOrder(players: Player[], firstTeamId: TeamId = 'honey'): string[] {
+  const teamIds = firstTeamId === 'honey' ? TEAM_IDS : [...TEAM_IDS].reverse()
+  const queues = teamIds.map((teamId) => players.filter((player) => player.teamId === teamId))
+  const order: string[] = []
+  const longest = Math.max(0, ...queues.map((queue) => queue.length))
+  for (let index = 0; index < longest; index += 1) {
+    queues.forEach((queue) => {
+      if (queue[index]) order.push(queue[index].id)
+    })
+  }
+  return order
+}
+
+export function faceOffRepresentativeIds(players: Player[], sequence: number): string[] {
+  return TEAM_IDS.map((teamId) => {
+    const teamPlayers = players.filter((player) => player.teamId === teamId)
+    return teamPlayers[sequence % teamPlayers.length]?.id
+  }).filter((id): id is string => Boolean(id))
+}
 
 export function roundForTurn(turnIndex: number, playerCount: number): number {
   return Math.min(TOTAL_ROUNDS, Math.floor(turnIndex / Math.max(1, playerCount)) + 1)
@@ -55,8 +116,9 @@ export function drawWord(
   category: Category,
   difficulty: Difficulty,
   usedWordIds: string[],
-  random = Math.random,
+  options: { mode?: GameMode; random?: () => number } = {},
 ): WordCard {
+  const random = options.random ?? Math.random
   const unused = bank.filter((card) =>
     card.difficulty === difficulty &&
     !usedWordIds.includes(card.id) &&
@@ -65,7 +127,20 @@ export function drawWord(
   const fallback = bank.filter((card) =>
     card.difficulty === difficulty && !usedWordIds.includes(card.id),
   )
-  const pool = unused.length > 0 ? unused : fallback
+  const weighted = (cards: WordCard[]) => options.mode === 'team'
+    ? cards.flatMap((card) => Array.from({ length: card.teamSelectionWeight ?? 1 }, () => card))
+    : cards
+  const preferredPool = weighted(unused)
+  const fallbackPool = weighted(fallback)
+  // If an unusually skip-heavy game consumes all 42 preferred team words in
+  // a tier, use the remaining cards rather than failing the room.
+  const pool = preferredPool.length > 0
+    ? preferredPool
+    : fallbackPool.length > 0
+      ? fallbackPool
+      : unused.length > 0
+        ? unused
+        : fallback
   if (pool.length === 0) throw new Error('WORD_BANK_EXHAUSTED')
   return pool[Math.floor(random() * pool.length)]
 }

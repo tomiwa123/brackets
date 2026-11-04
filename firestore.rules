@@ -14,13 +14,21 @@ service cloud.firestore {
       return data.keys().hasOnly([
           'roomCode', 'title', 'hostId', 'status', 'players', 'playerOrder',
           'turnIndex', 'currentTurn', 'history', 'usedWordIds', 'revision',
-          'createdAt', 'updatedAt'
+          'createdAt', 'updatedAt', 'mode', 'teams', 'faceOff',
+          'faceOffHistory', 'faceOffRotationOffset', 'openingCategory'
         ])
         && data.roomCode == roomCode
         && data.roomCode.size() == 4
         && data.title == 'Spelling bee game night'
         && data.hostId is string
         && data.hostId.size() <= 80
+        && (data.mode == 'classic' || data.mode == 'team')
+        && data.teams is list
+        && data.teams.size() == 2
+        && data.faceOffHistory is list
+        && data.faceOffHistory.size() <= 20
+        && data.faceOffRotationOffset is int
+        && data.faceOffRotationOffset >= 0
         && (data.status == 'lobby' || data.status == 'playing'
           || data.status == 'finished' || data.status == 'closed')
         && data.players is list
