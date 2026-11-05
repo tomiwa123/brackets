@@ -3,6 +3,7 @@ import { db, hasFirebaseConfig } from '../services/firebase'
 import {
   alternatingTeamOrder,
   assignBalancedTeams,
+  canRenameTeam,
   createDefaultTeams,
   drawWord,
   eligibleTemporaryJudges,
@@ -17,6 +18,7 @@ import {
   remainingSaveTokens,
   roundForTurn,
   teamForPlayer,
+  validatedTeamName,
 } from './gameEngine'
 import { CATEGORIES } from './types'
 import type { Category, FaceOff, FaceOffKind, GameMode, Hint, ReplayChoice, SpellingRoom, TeamId } from './types'
@@ -289,7 +291,13 @@ export async function shuffleTeamAssignments(code: string, actorId: string): Pro
   await mutate(code, (room) => {
     requireHost(room, actorId)
     if (room.status !== 'lobby') throw new Error('GAME_STARTED')
-    return { ...room, mode: 'team', players: assignBalancedTeams(room.players) }
+    const defaultNames = new Map(createDefaultTeams().map((team) => [team.id, team.name]))
+    return {
+      ...room,
+      mode: 'team',
+      players: assignBalancedTeams(room.players),
+      teams: room.teams.map((team) => ({ ...team, name: defaultNames.get(team.id) ?? team.name })),
+    }
   })
 }
 
@@ -307,11 +315,10 @@ export async function movePlayerToTeam(code: string, actorId: string, playerId: 
 
 export async function renameTeam(code: string, actorId: string, teamId: TeamId, name: string): Promise<void> {
   await mutate(code, (room) => {
-    requireHost(room, actorId)
     if (room.status !== 'lobby') throw new Error('GAME_STARTED')
-    const trimmed = name.trim().slice(0, 24)
-    if (!trimmed) return room
-    return { ...room, teams: room.teams.map((team) => team.id === teamId ? { ...team, name: trimmed } : team) }
+    if (!canRenameTeam(room, actorId, teamId)) throw new Error('TEAM_NAME_FORBIDDEN')
+    const validated = validatedTeamName(room.teams, teamId, name)
+    return { ...room, teams: room.teams.map((team) => team.id === teamId ? { ...team, name: validated } : team) }
   })
 }
 
@@ -660,12 +667,18 @@ export async function replayRoom(code: string, actorId: string, choice: ReplayCh
       : players.map((player) => player.id)
     const firstPlayerId = playerOrder[0]
     const startImmediately = choice === 'same'
+    const defaultNames = new Map(createDefaultTeams().map((team) => [team.id, team.name]))
     const resetRoom: SpellingRoom = {
       ...room,
       status: startImmediately ? 'playing' : 'lobby',
       players: players.map((player) => ({ ...player, score: 0, turns: 0 })),
       playerOrder,
-      teams: room.teams.map((team) => ({ ...team, score: 0, saveTokensUsed: [0, 0, 0] })),
+      teams: room.teams.map((team) => ({
+        ...team,
+        name: choice === 'shuffle' ? defaultNames.get(team.id) ?? team.name : team.name,
+        score: 0,
+        saveTokensUsed: [0, 0, 0],
+      })),
       turnIndex: 0,
       currentTurn: startImmediately && gameMode(room) === 'classic'
         ? makeTurn(firstPlayerId, room.revision + 1, judgeIdForPlayer(room, firstPlayerId))

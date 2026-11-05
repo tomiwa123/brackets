@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { BellRing, Check, Clipboard, Crown, Headphones, MonitorUp, RotateCcw, Settings2, ShieldCheck, Shuffle, Sparkles, Star, Trophy, UserPlus, Users, Volume2, X, Zap } from 'lucide-react'
+import { BellRing, Check, Clipboard, Crown, Headphones, MonitorUp, Pencil, RotateCcw, Settings2, ShieldCheck, Shuffle, Sparkles, Star, Trophy, UserPlus, Users, Volume2, X, Zap } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   addGuest,
@@ -42,6 +42,7 @@ import {
   ROUND_LABELS,
   roundForTurn,
   teamForPlayer,
+  canRenameTeam,
 } from './gameEngine'
 import type { Category, Hint, SpellingRoom } from './types'
 import { CATEGORIES } from './types'
@@ -65,6 +66,10 @@ function messageFor(error: unknown): string {
     TEAM_ONLY: 'Only the active team can call Save the Bee.',
     NO_SAVE_TOKENS: 'That team has used every Save the Bee token for this round.',
     BUZZER_ONLY: 'Only the two face-off representatives can use the buzzer.',
+    TEAM_NAME_FORBIDDEN: 'Only members of this team or the host can rename it.',
+    TEAM_NAME_REQUIRED: 'Team names cannot be blank.',
+    TEAM_NAME_TOO_LONG: 'Keep team names to 24 characters or fewer.',
+    TEAM_NAME_TAKEN: 'The two teams need different names.',
   }
   return messages[message] ?? (message || 'Something went wrong. Please try again.')
 }
@@ -162,6 +167,69 @@ function Scoreboard({ room, compact = false }: { room: SpellingRoom; compact?: b
   )
 }
 
+function TeamNameEditor({ room, teamId }: { room: SpellingRoom; teamId: 'honey' | 'blue' }) {
+  const me = getSpellingPlayerId()
+  const team = room.teams.find((item) => item.id === teamId)!
+  const mayEdit = canRenameTeam(room, me, teamId)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(team.name)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const cancel = () => {
+    setDraft(team.name)
+    setError('')
+    setEditing(false)
+  }
+
+  const save = async () => {
+    setError('')
+    setSaved(false)
+    try {
+      await renameTeam(room.roomCode, me, teamId, draft)
+      setEditing(false)
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 1800)
+    } catch (caught) {
+      setError(messageFor(caught))
+    }
+  }
+
+  return (
+    <div className="team-name-control">
+      <span className="team-name-label">Name your team</span>
+      {editing ? (
+        <div className="team-name-edit">
+          <input
+            className="team-name-input"
+            value={draft}
+            maxLength={24}
+            aria-label={`${team.name} team name`}
+            autoFocus
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void save()
+              if (event.key === 'Escape') cancel()
+            }}
+          />
+          <div className="team-name-actions">
+            <button className="team-name-save" onClick={() => void save()}><Check size={15} /> Save</button>
+            <button onClick={cancel}><X size={15} /> Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="team-name-display">
+          <h3>{team.name}</h3>
+          {mayEdit && <button aria-label={`Edit ${team.name} team name`} onClick={() => { setDraft(team.name); setError(''); setEditing(true) }}><Pencil size={15} /> Edit</button>}
+        </div>
+      )}
+      {error && <small className="team-name-error">{error}</small>}
+      {saved && <small className="team-name-success"><Check size={13} /> Team name updated</small>}
+      {!mayEdit && <small className="team-name-owner">Members of this team choose its name.</small>}
+    </div>
+  )
+}
+
 function TeamSetup({ room, act }: { room: SpellingRoom; act: (work: () => Promise<void>) => void }) {
   const me = getSpellingPlayerId()
   const isHost = room.hostId === me
@@ -174,9 +242,7 @@ function TeamSetup({ room, act }: { room: SpellingRoom; act: (work: () => Promis
       <div className="team-columns">
         {room.teams.map((team) => (
           <div className="team-column" key={team.id} style={{ '--team-color': team.color } as CSSProperties}>
-            {isHost
-              ? <div className="team-identity"><input className="team-name-input" defaultValue={team.name} maxLength={24} aria-label={`${team.name} team name`} onBlur={(event) => act(() => renameTeam(room.roomCode, me, team.id, event.target.value))} /><input className="team-color-input" type="color" value={team.color} aria-label={`${team.name} team color`} onChange={(event) => act(() => setTeamColor(room.roomCode, me, team.id, event.target.value))} /></div>
-              : <h3>{team.name}</h3>}
+            <div className="team-identity"><TeamNameEditor room={room} teamId={team.id} />{isHost && <input className="team-color-input" type="color" value={team.color} aria-label={`${team.name} team color`} onChange={(event) => act(() => setTeamColor(room.roomCode, me, team.id, event.target.value))} />}</div>
             <div className="team-roster">
               {room.players.filter((player) => player.teamId === team.id).map((player) => (
                 <button key={player.id} disabled={!isHost} onClick={() => act(() => movePlayerToTeam(room.roomCode, me, player.id, team.id === 'honey' ? 'blue' : 'honey'))}>

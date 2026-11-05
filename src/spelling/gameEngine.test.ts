@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   alternatingTeamOrder,
   assignBalancedTeams,
+  canRenameTeam,
   createDefaultTeams,
   difficultyForRound,
   drawWord,
@@ -13,6 +14,7 @@ import {
   remainingSaveTokens,
   roundForTurn,
   saveTokensForRound,
+  validatedTeamName,
 } from './gameEngine'
 import type { Player, SpellingRoom, WordCard } from './types'
 
@@ -132,6 +134,29 @@ describe('spelling game engine', () => {
       .toEqual(['honey', 'blue', 'honey', 'blue', 'honey'])
     expect(alternatingTeamOrder(assigned, 'blue').map((id) => assigned.find((player) => player.id === id)?.teamId))
       .toEqual(['blue', 'honey', 'blue', 'honey', 'honey'])
+  })
+
+  it('gives team members ownership of their name with host fallback', () => {
+    const room = {
+      hostId: 'host',
+      players: [
+        { id: 'host', name: 'Host', score: 0, turns: 0, teamId: 'honey' },
+        { id: 'honey', name: 'Honey', score: 0, turns: 0, teamId: 'honey' },
+        { id: 'blue', name: 'Blue', score: 0, turns: 0, teamId: 'blue' },
+      ],
+    } as SpellingRoom
+
+    expect(canRenameTeam(room, 'host', 'blue')).toBe(true)
+    expect(canRenameTeam(room, 'honey', 'honey')).toBe(true)
+    expect(canRenameTeam(room, 'honey', 'blue')).toBe(false)
+  })
+
+  it('validates team names after trimming and ignores case for duplicates', () => {
+    const teams = createDefaultTeams()
+    expect(validatedTeamName(teams, 'honey', '  Hive Minds  ')).toBe('Hive Minds')
+    expect(() => validatedTeamName(teams, 'honey', '   ')).toThrow('TEAM_NAME_REQUIRED')
+    expect(() => validatedTeamName(teams, 'honey', 'a'.repeat(25))).toThrow('TEAM_NAME_TOO_LONG')
+    expect(() => validatedTeamName(teams, 'honey', ' blueBELLS ')).toThrow('TEAM_NAME_TAKEN')
   })
 
   it('rotates one face-off representative from each team', () => {

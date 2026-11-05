@@ -34,6 +34,25 @@ export function teamForPlayer(room: Pick<SpellingRoom, 'players' | 'teams'>, pla
   return room.teams?.find((team) => team.id === teamId)
 }
 
+export function canRenameTeam(
+  room: Pick<SpellingRoom, 'hostId' | 'players'>,
+  actorId: string,
+  teamId: TeamId,
+): boolean {
+  return room.hostId === actorId
+    || room.players.some((player) => player.id === actorId && player.teamId === teamId)
+}
+
+export function validatedTeamName(teams: Team[], teamId: TeamId, name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('TEAM_NAME_REQUIRED')
+  if (trimmed.length > 24) throw new Error('TEAM_NAME_TOO_LONG')
+  if (teams.some((team) => team.id !== teamId && team.name.trim().toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
+    throw new Error('TEAM_NAME_TAKEN')
+  }
+  return trimmed
+}
+
 export function rankedTeams(teams: Team[]): Team[] {
   return [...teams].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
 }
