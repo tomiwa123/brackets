@@ -28,27 +28,32 @@ import { MAX_PLAYERS } from './config'
 const COLLECTION = 'spellingRooms'
 const PLAYER_KEY = 'spelling-night-player-id'
 const SESSION_KEY = 'spelling-night-session'
+const PLAYTHROUGH_PERSONA_KEY = 'spelling-night-playthrough-persona'
+const PLAYTHROUGH_PERSONAS = ['host', 'player-2', 'player-3', 'player-4'] as const
+
+export type PlaythroughPlayerPersona = (typeof PLAYTHROUGH_PERSONAS)[number]
 
 function randomId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`
 }
 
 export function getSpellingPlayerId(): string {
-  let id = localStorage.getItem(PLAYER_KEY)
+  const key = scopedStorageKey(PLAYER_KEY)
+  let id = localStorage.getItem(key)
   if (!id) {
     id = randomId('player')
-    localStorage.setItem(PLAYER_KEY, id)
+    localStorage.setItem(key, id)
   }
   return id
 }
 
 export function rememberSession(roomCode: string, name: string): void {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ roomCode, name }))
+  localStorage.setItem(scopedStorageKey(SESSION_KEY), JSON.stringify({ roomCode, name }))
 }
 
 export function getRememberedSession(): { roomCode: string; name: string } | null {
   try {
-    const value = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as unknown
+    const value = JSON.parse(localStorage.getItem(scopedStorageKey(SESSION_KEY)) ?? 'null') as unknown
     if (!value || typeof value !== 'object') return null
     const session = value as { roomCode?: unknown; name?: unknown }
     return typeof session.roomCode === 'string' && typeof session.name === 'string'
@@ -57,6 +62,37 @@ export function getRememberedSession(): { roomCode: string; name: string } | nul
   } catch {
     return null
   }
+}
+
+export function isPlaythroughMode(): boolean {
+  return window.location.pathname.startsWith('/spelling/playthrough')
+}
+
+function selectedPlaythroughPersona(): PlaythroughPlayerPersona {
+  const selected = localStorage.getItem(PLAYTHROUGH_PERSONA_KEY)
+  return PLAYTHROUGH_PERSONAS.includes(selected as PlaythroughPlayerPersona)
+    ? selected as PlaythroughPlayerPersona
+    : 'host'
+}
+
+function scopedStorageKey(baseKey: string, persona = selectedPlaythroughPersona()): string {
+  return isPlaythroughMode() ? `${baseKey}:playthrough:${persona}` : baseKey
+}
+
+export function selectPlaythroughPersona(persona: PlaythroughPlayerPersona): void {
+  localStorage.setItem(PLAYTHROUGH_PERSONA_KEY, persona)
+}
+
+export function getStoredPlaythroughPlayerId(persona: PlaythroughPlayerPersona): string | null {
+  return localStorage.getItem(`${PLAYER_KEY}:playthrough:${persona}`)
+}
+
+export function clearPlaythroughSessions(): void {
+  PLAYTHROUGH_PERSONAS.forEach((persona) => {
+    localStorage.removeItem(`${PLAYER_KEY}:playthrough:${persona}`)
+    localStorage.removeItem(`${SESSION_KEY}:playthrough:${persona}`)
+  })
+  localStorage.removeItem(PLAYTHROUGH_PERSONA_KEY)
 }
 
 function assertFirebase(): void {
@@ -229,6 +265,13 @@ export async function joinSpellingRoom(code: string, name: string): Promise<void
     }
   })
   rememberSession(normalized, name.trim())
+}
+
+export async function closeSpellingRoom(code: string, actorId: string): Promise<void> {
+  await mutate(code, (room) => {
+    requireHost(room, actorId)
+    return { ...room, status: 'closed' }
+  })
 }
 
 export function listenToSpellingRoom(

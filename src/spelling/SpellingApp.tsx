@@ -8,10 +8,14 @@ import {
   buzzFaceOff,
   chooseCategory,
   chooseFaceOffRallyCategory,
+  clearPlaythroughSessions,
+  closeSpellingRoom,
   createSpellingRoom,
   declineSaveTheBee,
   getRememberedSession,
   getSpellingPlayerId,
+  getStoredPlaythroughPlayerId,
+  isPlaythroughMode,
   joinCodeFromPath,
   judgeFaceOff,
   joinSpellingRoom,
@@ -24,6 +28,7 @@ import {
   renameTeam,
   replayRoom,
   requestHint,
+  selectPlaythroughPersona,
   setGameMode,
   setTeamColor,
   shuffleTeamAssignments,
@@ -32,6 +37,7 @@ import {
   undoRuling,
   unlockFaceOff,
 } from './firestore'
+import type { PlaythroughPlayerPersona } from './firestore'
 import {
   eligibleTemporaryJudges,
   gameMode,
@@ -87,10 +93,10 @@ function speak(text: string): void {
   window.speechSynthesis.speak(utterance)
 }
 
-function Landing({ onEnter }: { onEnter: (code: string) => void }) {
+function Landing({ onEnter, defaultCode = '' }: { onEnter: (code: string) => void; defaultCode?: string }) {
   const [mode, setMode] = useState<'home' | 'create' | 'join'>(joinCodeFromPath ? 'join' : 'home')
   const [name, setName] = useState(getRememberedSession()?.name ?? '')
-  const [code, setCode] = useState(joinCodeFromPath ?? '')
+  const [code, setCode] = useState(joinCodeFromPath ?? defaultCode)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -103,7 +109,7 @@ function Landing({ onEnter }: { onEnter: (code: string) => void }) {
       const roomCode = mode === 'create'
         ? await createSpellingRoom(name)
         : (await joinSpellingRoom(code, name), code.trim().toUpperCase())
-      window.history.replaceState({}, '', `/spelling/join/${roomCode}`)
+      if (!isPlaythroughMode()) window.history.replaceState({}, '', `/spelling/join/${roomCode}`)
       onEnter(roomCode)
     } catch (caught) {
       setError(messageFor(caught))
@@ -561,14 +567,136 @@ function Room({ code, onLeave }: { code: string; onLeave: () => void }) {
   return <>{error && <div className="toast-error">{error}<button onClick={() => setError('')}>×</button></div>}{room.status === 'lobby' ? <Lobby room={room} act={act} /> : room.status === 'finished' ? <FinalScreen room={room} act={act} /> : room.faceOff ? <FaceOffView room={room} act={act} /> : !room.currentTurn?.wordId ? <CategoryPicker room={room} act={act} /> : <TurnView room={room} act={act} />}</>
 }
 
-export function SpellingApp() {
-  useEffect(() => {
-    document.title = 'Spelling bee game night'
-  }, [])
+type PlaythroughPersona = PlaythroughPlayerPersona | 'presentation'
+
+interface PlaythroughState {
+  selected: PlaythroughPersona
+  roomCode: string | null
+}
+
+const PLAYTHROUGH_STATE_KEY = 'spelling-night-playthrough-state'
+const PLAYTHROUGH_PERSONAS: { id: PlaythroughPersona; label: string }[] = [
+  { id: 'host', label: 'Host' },
+  { id: 'player-2', label: 'Player 2' },
+  { id: 'player-3', label: 'Player 3' },
+  { id: 'player-4', label: 'Player 4' },
+  { id: 'presentation', label: 'Presentation' },
+]
+
+function loadPlaythroughState(): PlaythroughState {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PLAYTHROUGH_STATE_KEY) ?? 'null') as Partial<PlaythroughState> | null
+    const selected = PLAYTHROUGH_PERSONAS.some((persona) => persona.id === stored?.selected)
+      ? stored!.selected!
+      : 'host'
+    const roomCode = typeof stored?.roomCode === 'string' && /^[A-Z]{4}$/.test(stored.roomCode)
+      ? stored.roomCode
+      : null
+    if (selected !== 'presentation') selectPlaythroughPersona(selected)
+    return { selected, roomCode }
+  } catch {
+    selectPlaythroughPersona('host')
+    return { selected: 'host', roomCode: null }
+  }
+}
+
+function storePlaythroughState(state: PlaythroughState): void {
+  localStorage.setItem(PLAYTHROUGH_STATE_KEY, JSON.stringify(state))
+}
+
+function PlaythroughPlayerView({ sharedRoomCode, onRoomEntered }: {
+  sharedRoomCode: string | null
+  onRoomEntered: (code: string) => void
+}) {
+  const [roomCode, setRoomCode] = useState<string | null>(() => {
+    const remembered = getRememberedSession()
+    return sharedRoomCode && remembered?.roomCode === sharedRoomCode ? sharedRoomCode : null
+  })
+  const enter = (code: string) => {
+    setRoomCode(code)
+    onRoomEntered(code)
+  }
+  return roomCode
+    ? <Room code={roomCode} onLeave={() => setRoomCode(null)} />
+    : <Landing defaultCode={sharedRoomCode ?? ''} onEnter={enter} />
+}
+
+function PlaythroughShell() {
+  const [state, setState] = useState(loadPlaythroughState)
+  const [resetVersion, setResetVersion] = useState(0)
+  const [resetting, setResetting] = useState(false)
+
+  const choosePersona = (selected: PlaythroughPersona) => {
+    if (selected !== 'presentation') selectPlaythroughPersona(selected)
+    const next = { ...state, selected }
+    storePlaythroughState(next)
+    setState(next)
+  }
+
+  const rememberRoom = (roomCode: string) => {
+    const next = { ...state, roomCode: roomCode.toUpperCase() }
+    storePlaythroughState(next)
+    setState(next)
+  }
+
+  const reset = async () => {
+    if (resetting) return
+    setResetting(true)
+    const hostId = getStoredPlaythroughPlayerId('host')
+    if (state.roomCode && hostId) {
+      try { await closeSpellingRoom(state.roomCode, hostId) } catch { /* The room may already be gone or closed. */ }
+    }
+    clearPlaythroughSessions()
+    localStorage.removeItem(PLAYTHROUGH_STATE_KEY)
+    selectPlaythroughPersona('host')
+    const fresh: PlaythroughState = { selected: 'host', roomCode: null }
+    setState(fresh)
+    setResetVersion((version) => version + 1)
+    setResetting(false)
+  }
+
+  return (
+    <div className="playthrough-shell">
+      <header className="playthrough-toolbar">
+        <div className="playthrough-title"><strong>PLAYTHROUGH ONLY</strong><span>Switch viewpoints without changing the live room.</span></div>
+        <nav aria-label="Playthrough viewpoints">
+          {PLAYTHROUGH_PERSONAS.map((persona) => (
+            <button
+              key={persona.id}
+              className={state.selected === persona.id ? 'selected' : ''}
+              aria-pressed={state.selected === persona.id}
+              onClick={() => choosePersona(persona.id)}
+            >
+              {persona.id === 'presentation' && <MonitorUp size={14} />}{persona.label}
+            </button>
+          ))}
+        </nav>
+        <div className="playthrough-room"><small>Live room</small><b>{state.roomCode ?? '— — — —'}</b></div>
+        <button className="playthrough-reset" disabled={resetting} onClick={() => void reset()}><RotateCcw size={15} /> {resetting ? 'Resetting…' : 'Reset playthrough'}</button>
+      </header>
+      <div className="playthrough-viewport" key={`${state.selected}-${resetVersion}`}>
+        {state.selected === 'presentation'
+          ? state.roomCode
+            ? <PresentationRoom code={state.roomCode} />
+            : <main className="spell-shell playthrough-empty"><MonitorUp size={40} /><h1>No room yet.</h1><p>Switch to Host and create a game first.</p></main>
+          : <PlaythroughPlayerView sharedRoomCode={state.roomCode} onRoomEntered={rememberRoom} />}
+      </div>
+    </div>
+  )
+}
+
+function StandardSpellingApp() {
   const [roomCode, setRoomCode] = useState<string | null>(() => {
     const remembered = getRememberedSession()
     return joinCodeFromPath && remembered?.roomCode === joinCodeFromPath ? joinCodeFromPath : null
   })
   if (presentationCodeFromPath) return <PresentationRoom code={presentationCodeFromPath} />
   return roomCode ? <Room code={roomCode} onLeave={() => { window.history.replaceState({}, '', '/spelling'); setRoomCode(null) }} /> : <Landing onEnter={setRoomCode} />
+}
+
+export function SpellingApp() {
+  useEffect(() => {
+    document.title = 'Spelling bee game night'
+  }, [])
+  return isPlaythroughMode() ? <PlaythroughShell /> : <StandardSpellingApp />
 }
