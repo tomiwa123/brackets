@@ -6,24 +6,30 @@ import {
   assignBalancedTeams,
   canRenameTeam,
   createDefaultTeams,
+  difficultyForRound,
   drawWord,
+  eligiblePremiumPlayers,
   eligibleTemporaryJudges,
+  faceOffPoints,
   faceOffRepresentativeIds,
   gameMode,
   hasHostControl,
   judgeIdForPlayer,
   judgeIdForTurn,
   makeTurn,
+  nextRallyPlayerId,
   nextTurn,
   pointsForRound,
+  premiumChunkPoints,
   rankedTeams,
   remainingSaveTokens,
   roundForTurn,
+  startingPremiumBank,
   teamForPlayer,
   validatedTeamName,
 } from './gameEngine'
 import { CATEGORIES } from './types'
-import type { Category, FaceOff, FaceOffKind, GameMode, Hint, ReplayChoice, SpellingRoom, TeamId } from './types'
+import type { Category, CurrentTurn, FaceOff, FaceOffKind, FaceOffRecord, GameMode, Hint, PremiumBank, ReplayChoice, SpellingRoom, TeamId } from './types'
 import { WORD_BANK } from './words'
 import { MAX_PLAYERS } from './config'
 
@@ -31,7 +37,7 @@ const COLLECTION = 'spellingRooms'
 const PLAYER_KEY = 'spelling-night-player-id'
 const SESSION_KEY = 'spelling-night-session'
 const PLAYTHROUGH_PERSONA_KEY = 'spelling-night-playthrough-persona'
-const PLAYTHROUGH_PERSONAS = ['host', 'player-2', 'player-3', 'player-4'] as const
+const PLAYTHROUGH_PERSONAS = ['host', 'player-2', 'player-3', 'player-4', 'player-5', 'player-6'] as const
 
 export type PlaythroughPlayerPersona = (typeof PLAYTHROUGH_PERSONAS)[number]
 
@@ -126,6 +132,8 @@ function normalizeRoom(room: SpellingRoom): SpellingRoom {
     faceOff: room.faceOff ?? null,
     faceOffHistory: room.faceOffHistory ?? [],
     faceOffRotationOffset: room.faceOffRotationOffset ?? 0,
+    premiumBank: room.premiumBank ?? null,
+    roundUsedPlayerIds: room.roundUsedPlayerIds ?? [],
     openingCategory: room.openingCategory ?? null,
   }
 }
@@ -205,6 +213,8 @@ export async function createSpellingRoom(hostName: string): Promise<string> {
         faceOff: null,
         faceOffHistory: [],
         faceOffRotationOffset: 0,
+        premiumBank: null,
+        roundUsedPlayerIds: [],
         openingCategory: null,
         history: [],
         usedWordIds: [],
@@ -447,6 +457,8 @@ export async function startSpellingGame(code: string, actorId: string): Promise<
         ? null
         : makeTurn(firstPlayerId, room.revision + 1, judgeIdForPlayer(room, firstPlayerId)),
       faceOffHistory: [],
+      premiumBank: null,
+      roundUsedPlayerIds: [],
       openingCategory: null,
     }
     return gameMode(room) === 'team' ? { ...started, ...createFaceOff(started, 1, 'round') } : started
@@ -508,7 +520,8 @@ export async function judgeFaceOff(code: string, actorId: string, correct: boole
     const attemptPlayer = room.players.find((player) => player.id === faceOff.attemptPlayerId)
     const winnerTeamId = attemptPlayer?.teamId
     if (correct && winnerTeamId) {
-      const record = {
+      const awardedPoints = faceOffPoints(faceOff.round, faceOff.kind)
+      const record: FaceOffRecord = {
         id: faceOff.id,
         kind: faceOff.kind,
         round: faceOff.round,
@@ -517,21 +530,34 @@ export async function judgeFaceOff(code: string, actorId: string, correct: boole
         wordId: faceOff.wordId,
         winnerPlayerId: attemptPlayer.id,
         winnerTeamId,
+        points: awardedPoints,
       }
       if (faceOff.kind === 'tiebreak') {
         return {
           ...room,
           status: 'finished',
           faceOff: null,
-          teams: room.teams.map((team) => team.id === winnerTeamId ? { ...team, score: team.score + 1 } : team),
+          teams: room.teams.map((team) => team.id === winnerTeamId ? { ...team, score: team.score + awardedPoints } : team),
           faceOffHistory: [...room.faceOffHistory, record],
         }
       }
+      const bankPoints = startingPremiumBank(faceOff.round, room.players.length)
+      const premiumBank: PremiumBank = {
+        round: faceOff.round,
+        startPoints: bankPoints,
+        remainingPoints: bankPoints,
+        controllingTeamId: winnerTeamId,
+        carriedCategory: faceOff.category,
+        selectedPlayerId: null,
+      }
       return {
         ...room,
-        faceOff: { ...faceOff, status: 'category', winnerPlayerId: attemptPlayer.id, winnerTeamId },
+        faceOff: null,
+        premiumBank,
+        currentTurn: null,
+        roundUsedPlayerIds: [],
         teams: room.teams.map((team) => team.id === winnerTeamId
-          ? { ...team, score: team.score + pointsForRound(faceOff.round) }
+          ? { ...team, score: team.score + awardedPoints }
           : team),
         faceOffHistory: [...room.faceOffHistory, record],
       }
@@ -543,19 +569,90 @@ export async function judgeFaceOff(code: string, actorId: string, correct: boole
         faceOff: { ...faceOff, status: 'steal', attemptPlayerId: stealPlayerId, attemptStartedAt: Date.now() },
       }
     }
-    const record = {
+    const record: FaceOffRecord = {
       id: faceOff.id,
       kind: faceOff.kind,
       round: faceOff.round,
       representativeIds: faceOff.representativeIds,
       category: faceOff.category,
       wordId: faceOff.wordId,
+      points: 0,
     }
     const withoutWinner = { ...room, faceOffHistory: [...room.faceOffHistory, record] }
     if (faceOff.kind === 'tiebreak') return { ...withoutWinner, ...createFaceOff(withoutWinner, 3, 'tiebreak') }
-    const categoryFaceOff = { ...faceOff }
-    delete categoryFaceOff.attemptPlayerId
-    return { ...withoutWinner, faceOff: { ...categoryFaceOff, status: 'category' } }
+    const defaultStartingTeamId = room.playerOrder
+      .map((id) => room.players.find((player) => player.id === id)?.teamId)
+      .find((id): id is TeamId => Boolean(id)) ?? 'honey'
+    const bankPoints = startingPremiumBank(faceOff.round, room.players.length)
+    const premiumBank: PremiumBank = {
+      round: faceOff.round,
+      startPoints: bankPoints,
+      remainingPoints: bankPoints,
+      controllingTeamId: defaultStartingTeamId,
+      carriedCategory: faceOff.category,
+      selectedPlayerId: null,
+    }
+    return {
+      ...withoutWinner,
+      faceOff: null,
+      premiumBank,
+      currentTurn: null,
+      roundUsedPlayerIds: [],
+    }
+  })
+}
+
+export async function selectPremiumPlayer(code: string, actorId: string, playerId: string): Promise<void> {
+  await mutate(code, (room) => {
+    const bank = room.premiumBank
+    if (!bank || room.currentTurn) return room
+    const actor = room.players.find((player) => player.id === actorId)
+    const isControllingMember = actor?.teamId === bank.controllingTeamId
+    if (!hasHostControl(room, actorId) && !isControllingMember) throw new Error('TEAM_ONLY')
+    const targetPlayer = room.players.find((player) => player.id === playerId)
+    if (!targetPlayer || targetPlayer.teamId !== bank.controllingTeamId) throw new Error('INVALID_PLAYER')
+    if ((room.roundUsedPlayerIds ?? []).includes(playerId)) throw new Error('PLAYER_ALREADY_USED')
+    return {
+      ...room,
+      premiumBank: { ...bank, selectedPlayerId: playerId },
+    }
+  })
+}
+
+export async function confirmPremiumTurn(code: string, actorId: string): Promise<void> {
+  await mutate(code, (room) => {
+    const bank = room.premiumBank
+    if (!bank || room.currentTurn) return room
+    const selectedPlayerId = bank.selectedPlayerId
+    if (!selectedPlayerId) throw new Error('NO_PLAYER_SELECTED')
+    const actor = room.players.find((player) => player.id === actorId)
+    const isSelectedPlayer = actorId === selectedPlayerId
+    const isControllingMember = actor?.teamId === bank.controllingTeamId
+    if (!hasHostControl(room, actorId) && !isSelectedPlayer && !isControllingMember) throw new Error('TEAM_ONLY')
+    if ((room.roundUsedPlayerIds ?? []).includes(selectedPlayerId)) throw new Error('PLAYER_ALREADY_USED')
+
+    const difficulty = difficultyForRound(bank.round)
+    const word = drawWord(WORD_BANK, bank.carriedCategory, difficulty, room.usedWordIds, { mode: 'team', premiumOnly: true })
+    const basePoints = pointsForRound(bank.round)
+    const bonusPoints = premiumChunkPoints(bank.round)
+    const turn: CurrentTurn = {
+      turnId: `${Date.now()}-${room.revision + 1}-${selectedPlayerId}`,
+      playerId: selectedPlayerId,
+      judgeId: judgeIdForPlayer(room, selectedPlayerId) ?? undefined,
+      category: bank.carriedCategory,
+      wordId: word.id,
+      isPremium: true,
+      basePoints,
+      bonusPoints,
+      requestedHints: [],
+      ruling: null,
+      spellingStartedAt: Date.now(),
+    }
+    return {
+      ...room,
+      currentTurn: turn,
+      usedWordIds: [...room.usedWordIds, word.id],
+    }
   })
 }
 
@@ -621,13 +718,61 @@ export async function judgeTurn(code: string, actorId: string, correct: boolean)
     if (judgeIdForTurn(room) !== actorId) throw new Error('JUDGE_ONLY')
     const turn = room.currentTurn
     if (!turn?.wordId || !turn.category || turn.ruling) return room
-    const round = roundForTurn(room.turnIndex, room.playerOrder.length)
-    const points = correct ? pointsForRound(round) : 0
+    const round = turn.isPremium ? (room.premiumBank?.round ?? roundForTurn(room.turnIndex, room.playerOrder.length)) : roundForTurn(room.turnIndex, room.playerOrder.length)
     const team = gameMode(room) === 'team' ? teamForPlayer(room, turn.playerId) : undefined
+
+    if (turn.isPremium && room.premiumBank) {
+      const bank = room.premiumBank
+      const basePoints = turn.basePoints ?? pointsForRound(bank.round)
+      const bonusPoints = turn.bonusPoints ?? premiumChunkPoints(bank.round)
+      const points = correct ? basePoints + bonusPoints : 0
+      const nextRemaining = correct ? Math.max(0, bank.remainingPoints - bonusPoints) : bank.remainingPoints
+      const otherTeamId: TeamId = bank.controllingTeamId === 'honey' ? 'blue' : 'honey'
+      const nextControllingTeamId: TeamId = correct ? bank.controllingTeamId : otherTeamId
+      const nextRoundUsed = (room.roundUsedPlayerIds ?? []).includes(turn.playerId)
+        ? room.roundUsedPlayerIds
+        : [...(room.roundUsedPlayerIds ?? []), turn.playerId]
+
+      return {
+        ...room,
+        currentTurn: { ...turn, ruling: correct ? 'correct' : 'incorrect' },
+        roundUsedPlayerIds: nextRoundUsed,
+        premiumBank: {
+          ...bank,
+          remainingPoints: nextRemaining,
+          controllingTeamId: nextControllingTeamId,
+        },
+        players: room.players.map((player) => player.id === turn.playerId
+          ? { ...player, score: player.score + points, turns: player.turns + 1 }
+          : player),
+        teams: team
+          ? room.teams.map((item) => item.id === team.id ? { ...item, score: item.score + points } : item)
+          : room.teams,
+        history: [...room.history, {
+          turnId: turn.turnId,
+          playerId: turn.playerId,
+          wordId: turn.wordId,
+          category: turn.category,
+          round: bank.round,
+          correct,
+          points,
+          isPremium: true,
+          basePoints,
+          bonusPoints,
+          ...(team ? { teamId: team.id } : {}),
+        }],
+      }
+    }
+
+    const points = correct ? pointsForRound(round) : 0
     const saved = Boolean(turn.saveActive && correct)
+    const nextRoundUsed = (room.roundUsedPlayerIds ?? []).includes(turn.playerId)
+      ? room.roundUsedPlayerIds
+      : [...(room.roundUsedPlayerIds ?? []), turn.playerId]
     return {
       ...room,
       currentTurn: { ...turn, ruling: correct ? (saved ? 'saved' : 'correct') : 'incorrect' },
+      roundUsedPlayerIds: nextRoundUsed,
       players: room.players.map((player) => player.id === turn.playerId
         ? { ...player, score: player.score + points, turns: player.turns + 1 }
         : player),
@@ -653,7 +798,7 @@ export async function activateSaveTheBee(code: string, actorId: string): Promise
   await mutate(code, (room) => {
     const turn = room.currentTurn
     const record = room.history.at(-1)
-    if (gameMode(room) !== 'team' || !turn || turn.ruling !== 'incorrect' || turn.saveActive) return room
+    if (gameMode(room) !== 'team' || !turn || turn.isPremium || turn.ruling !== 'incorrect' || turn.saveActive) return room
     if (!record || record.turnId !== turn.turnId) return room
     const team = teamForPlayer(room, turn.playerId)
     if (!team) return room
@@ -693,9 +838,24 @@ export async function undoRuling(code: string, actorId: string): Promise<void> {
     const turn = room.currentTurn
     const record = room.history.at(-1)
     if (!turn?.ruling || !record || record.turnId !== turn.turnId) return room
+    const nextRoundUsed = (room.roundUsedPlayerIds ?? []).filter((id) => id !== record.playerId)
+    let nextBank = room.premiumBank
+    if (turn.isPremium && nextBank) {
+      const bonusToRestore = record.correct ? (record.bonusPoints ?? 0) : 0
+      const prevControlling = record.correct
+        ? nextBank.controllingTeamId
+        : (nextBank.controllingTeamId === 'honey' ? 'blue' : 'honey')
+      nextBank = {
+        ...nextBank,
+        remainingPoints: nextBank.remainingPoints + bonusToRestore,
+        controllingTeamId: prevControlling,
+      }
+    }
     return {
       ...room,
       currentTurn: { ...turn, ruling: null, saveDeclined: false },
+      premiumBank: nextBank,
+      roundUsedPlayerIds: nextRoundUsed,
       players: room.players.map((player) => player.id === record.playerId
         ? { ...player, score: player.score - record.points, turns: Math.max(0, player.turns - 1) }
         : player),
@@ -712,9 +872,12 @@ export async function skipWord(code: string, actorId: string): Promise<void> {
     if (judgeIdForTurn(room) !== actorId) throw new Error('JUDGE_ONLY')
     const turn = room.currentTurn
     if (!turn?.category || turn.ruling) return room
-    const round = roundForTurn(room.turnIndex, room.playerOrder.length)
-    const difficulty = round === 1 ? 'warmup' : round === 2 ? 'tricky' : 'menace'
-    const word = drawWord(WORD_BANK, turn.category, difficulty, room.usedWordIds, { mode: gameMode(room) })
+    const round = turn.isPremium ? (room.premiumBank?.round ?? roundForTurn(room.turnIndex, room.playerOrder.length)) : roundForTurn(room.turnIndex, room.playerOrder.length)
+    const difficulty = difficultyForRound(round)
+    const word = drawWord(WORD_BANK, turn.category, difficulty, room.usedWordIds, {
+      mode: gameMode(room),
+      premiumOnly: Boolean(turn.isPremium),
+    })
     return {
       ...room,
       currentTurn: { ...turn, wordId: word.id, spellingStartedAt: Date.now(), requestedHints: [] },
@@ -728,41 +891,134 @@ export async function advanceTurn(code: string, actorId: string): Promise<void> 
     requireHost(room, actorId)
     if (!room.currentTurn?.ruling) return room
     if (gameMode(room) !== 'team') return { ...room, ...nextTurn(room) }
-    const nextIndex = room.turnIndex + 1
+
     const playerCount = room.playerOrder.length
-    const totalTurns = playerCount * 3
-    if (nextIndex >= totalTurns) {
-      const [first, second] = rankedTeams(room.teams)
-      if (first && second && first.score === second.score) {
-        const tiedRoom = { ...room, turnIndex: nextIndex, currentTurn: null, openingCategory: null }
-        return { ...tiedRoom, ...createFaceOff(tiedRoom, 3, 'tiebreak') }
+    const currentRound = room.premiumBank?.round ?? roundForTurn(room.turnIndex, playerCount)
+
+    // Handle premium turn advance
+    if (room.currentTurn.isPremium && room.premiumBank) {
+      const bank = room.premiumBank
+      const honeyEligible = eligiblePremiumPlayers(room, 'honey')
+      const blueEligible = eligiblePremiumPlayers(room, 'blue')
+      const bankEmpty = bank.remainingPoints <= 0
+      const noEligiblePlayers = honeyEligible.length === 0 && blueEligible.length === 0
+
+      // If bank is empty or neither team has players left, premium phase ends!
+      if (bankEmpty || noEligiblePlayers) {
+        const nextRallyId = nextRallyPlayerId(room)
+        if (nextRallyId) {
+          // Rally begins!
+          const turn = makeTurn(nextRallyId, room.revision + 1, judgeIdForPlayer(room, nextRallyId))
+          return {
+            ...room,
+            premiumBank: null,
+            currentTurn: turn,
+          }
+        } else {
+          // All players in room used this round
+          if (currentRound < 3) {
+            const nextRound = currentRound + 1
+            const betweenRounds = {
+              ...room,
+              turnIndex: playerCount * currentRound,
+              currentTurn: null,
+              faceOff: null,
+              premiumBank: null,
+              roundUsedPlayerIds: [],
+              openingCategory: null,
+            }
+            return { ...betweenRounds, ...createFaceOff(betweenRounds, nextRound, 'round') }
+          }
+          // End of round 3: check tiebreak
+          const [first, second] = rankedTeams(room.teams)
+          if (first && second && first.score === second.score) {
+            const tiedRoom = {
+              ...room,
+              turnIndex: playerCount * 3,
+              currentTurn: null,
+              faceOff: null,
+              premiumBank: null,
+              roundUsedPlayerIds: [],
+              openingCategory: null,
+            }
+            return { ...tiedRoom, ...createFaceOff(tiedRoom, 3, 'tiebreak') }
+          }
+          return {
+            ...room,
+            turnIndex: playerCount * 3,
+            currentTurn: null,
+            faceOff: null,
+            premiumBank: null,
+            status: 'finished',
+          }
+        }
       }
-      return { ...room, turnIndex: nextIndex, currentTurn: null, faceOff: null, openingCategory: null, status: 'finished' }
-    }
-    if (nextIndex % playerCount === 0) {
-      const round = roundForTurn(nextIndex, playerCount)
-      const betweenRounds = { ...room, turnIndex: nextIndex, currentTurn: null, faceOff: null, openingCategory: null }
-      return { ...betweenRounds, ...createFaceOff(betweenRounds, round, 'round') }
-    }
-    const nextPlayerId = room.playerOrder[nextIndex % playerCount]
-    const turn = makeTurn(nextPlayerId, room.revision + 1, judgeIdForPlayer(room, nextPlayerId))
-    if (nextIndex % playerCount === 1 && room.openingCategory) {
-      const round = roundForTurn(nextIndex, playerCount)
-      const difficulty = round === 1 ? 'warmup' : round === 2 ? 'tricky' : 'menace'
-      const word = drawWord(WORD_BANK, room.openingCategory, difficulty, room.usedWordIds, { mode: 'team' })
+
+      // Premium bank continues
+      let controllingTeamId = bank.controllingTeamId
+      if (eligiblePremiumPlayers(room, controllingTeamId).length === 0) {
+        controllingTeamId = controllingTeamId === 'honey' ? 'blue' : 'honey'
+      }
+
       return {
         ...room,
-        turnIndex: nextIndex,
-        currentTurn: {
-          ...turn,
-          category: room.openingCategory,
-          wordId: word.id,
-          spellingStartedAt: Date.now(),
+        currentTurn: null,
+        premiumBank: {
+          ...bank,
+          controllingTeamId,
+          selectedPlayerId: null,
         },
-        usedWordIds: [...room.usedWordIds, word.id],
       }
     }
-    return { ...room, turnIndex: nextIndex, currentTurn: turn }
+
+    // Normal rally turn advance
+    const nextRallyId = nextRallyPlayerId(room)
+    if (nextRallyId) {
+      const turn = makeTurn(nextRallyId, room.revision + 1, judgeIdForPlayer(room, nextRallyId))
+      return {
+        ...room,
+        turnIndex: room.turnIndex + 1,
+        currentTurn: turn,
+      }
+    }
+
+    // Round complete
+    if (currentRound < 3) {
+      const nextRound = currentRound + 1
+      const betweenRounds = {
+        ...room,
+        turnIndex: playerCount * currentRound,
+        currentTurn: null,
+        faceOff: null,
+        premiumBank: null,
+        roundUsedPlayerIds: [],
+        openingCategory: null,
+      }
+      return { ...betweenRounds, ...createFaceOff(betweenRounds, nextRound, 'round') }
+    }
+
+    // End of round 3: check tiebreak
+    const [first, second] = rankedTeams(room.teams)
+    if (first && second && first.score === second.score) {
+      const tiedRoom = {
+        ...room,
+        turnIndex: playerCount * 3,
+        currentTurn: null,
+        faceOff: null,
+        premiumBank: null,
+        roundUsedPlayerIds: [],
+        openingCategory: null,
+      }
+      return { ...tiedRoom, ...createFaceOff(tiedRoom, 3, 'tiebreak') }
+    }
+    return {
+      ...room,
+      turnIndex: playerCount * 3,
+      currentTurn: null,
+      faceOff: null,
+      premiumBank: null,
+      status: 'finished',
+    }
   })
 }
 
@@ -796,6 +1052,8 @@ export async function replayRoom(code: string, actorId: string, choice: ReplayCh
       faceOff: null,
       faceOffHistory: [],
       faceOffRotationOffset: room.faceOffRotationOffset + (gameMode(room) === 'team' ? 3 : 0),
+      premiumBank: null,
+      roundUsedPlayerIds: [],
       openingCategory: null,
       history: [],
       usedWordIds: [],

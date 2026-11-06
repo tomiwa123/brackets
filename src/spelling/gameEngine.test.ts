@@ -7,15 +7,20 @@ import {
   createDefaultTeams,
   difficultyForRound,
   drawWord,
+  eligiblePremiumPlayers,
   eligibleTemporaryJudges,
+  faceOffPoints,
   faceOffRepresentativeIds,
   hasHostControl,
   judgeIdForPlayer,
+  nextRallyPlayerId,
   nextTurn,
   pointsForRound,
+  premiumChunkPoints,
   remainingSaveTokens,
   roundForTurn,
   saveTokensForRound,
+  startingPremiumBank,
   validatedTeamName,
 } from './gameEngine'
 import type { Player, SpellingRoom, WordCard } from './types'
@@ -191,5 +196,77 @@ describe('spelling game engine', () => {
     expect(faceOffRepresentativeIds(players, 0)).toEqual(['h1', 'b1'])
     expect(faceOffRepresentativeIds(players, 1)).toEqual(['h2', 'b2'])
     expect(faceOffRepresentativeIds(players, 2)).toEqual(['h1', 'b1'])
+  })
+
+  it('scales Premium Bank starting bonus for compact 4-6 rooms and standard 8-10 rooms', () => {
+    // Compact 4-6 player rooms: 2 / 4 / 6
+    for (const count of [4, 5, 6]) {
+      expect([1, 2, 3].map((r) => startingPremiumBank(r, count))).toEqual([2, 4, 6])
+    }
+    // Standard 8-10 (and larger) rooms: 3 / 6 / 9
+    for (const count of [7, 8, 10, 12]) {
+      expect([1, 2, 3].map((r) => startingPremiumBank(r, count))).toEqual([3, 6, 9])
+    }
+    // Drained chunks match base round points
+    expect([1, 2, 3].map(premiumChunkPoints)).toEqual([1, 2, 3])
+  })
+
+  it('awards normal round value + 1 for face-off wins and steals, 1 for tiebreak', () => {
+    expect([1, 2, 3].map((r) => faceOffPoints(r, 'round'))).toEqual([2, 3, 4])
+    expect(faceOffPoints(1, 'tiebreak')).toBe(1)
+    expect(faceOffPoints(3, 'tiebreak')).toBe(1)
+  })
+
+  it('draws only hard-band words during premium phase with fallback inside tier', () => {
+    const cards: WordCard[] = [
+      { id: 'w0', word: 'pixel', pronunciation: 'PIK-suhl', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'warmup', teamSelectionWeight: 0 },
+      { id: 'w1', word: 'podcast', pronunciation: 'POD-kast', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'warmup', teamSelectionWeight: 1 },
+      { id: 'w2', word: 'thumbnail', pronunciation: 'THUM-nayl', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'warmup', teamSelectionWeight: 2 },
+      { id: 'diff-cat-w2', word: 'cypress', pronunciation: 'SY-prus', definition: '', origin: '', sentence: '', category: 'Bay & Beyond', difficulty: 'warmup', teamSelectionWeight: 2 },
+      { id: 'next-round', word: 'cryptography', pronunciation: 'krip-TOG-ruh-fee', definition: '', origin: '', sentence: '', category: 'Internet Brain', difficulty: 'tricky', teamSelectionWeight: 2 },
+    ]
+
+    // Normal draw without premiumOnly gets weighted selection
+    const normal = drawWord(cards, 'Internet Brain', 'warmup', [], { mode: 'team', random: () => 0.6 })
+    expect(normal.difficulty).toBe('warmup')
+
+    // Premium draw strictly selects hardest within-tier word (weight 2)
+    const premium = drawWord(cards, 'Internet Brain', 'warmup', [], { mode: 'team', premiumOnly: true, random: () => 0 })
+    expect(premium.id).toBe('w2')
+    expect(premium.teamSelectionWeight).toBe(2)
+    expect(premium.difficulty).toBe('warmup')
+
+    // Deterministic fallback to weight 1 when weight 2 used in same category and tier
+    const fallback1 = drawWord(cards, 'Internet Brain', 'warmup', ['w2'], { mode: 'team', premiumOnly: true })
+    expect(fallback1.id).toBe('w1')
+
+    // Deterministic fallback to weight 0 when weight 1 and 2 used in same category and tier
+    const fallback0 = drawWord(cards, 'Internet Brain', 'warmup', ['w2', 'w1'], { mode: 'team', premiumOnly: true })
+    expect(fallback0.id).toBe('w0')
+
+    // Deterministic fallback across categories within same difficulty tier without jumping tier
+    const fallbackCat = drawWord(cards, 'Internet Brain', 'warmup', ['w2', 'w1', 'w0'], { mode: 'team', premiumOnly: true })
+    expect(fallbackCat.id).toBe('diff-cat-w2')
+    expect(fallbackCat.difficulty).toBe('warmup')
+  })
+
+  it('filters eligible premium players and advances ordinary rally skipping used players', () => {
+    const players: Player[] = [
+      { id: 'h1', name: 'Honey 1', score: 0, turns: 0, teamId: 'honey' },
+      { id: 'b1', name: 'Blue 1', score: 0, turns: 0, teamId: 'blue' },
+      { id: 'h2', name: 'Honey 2', score: 0, turns: 0, teamId: 'honey' },
+      { id: 'b2', name: 'Blue 2', score: 0, turns: 0, teamId: 'blue' },
+    ]
+    const playerOrder = ['h1', 'b1', 'h2', 'b2']
+
+    expect(eligiblePremiumPlayers({ players, roundUsedPlayerIds: [] }, 'honey').map((p) => p.id)).toEqual(['h1', 'h2'])
+    expect(eligiblePremiumPlayers({ players, roundUsedPlayerIds: ['h1'] }, 'honey').map((p) => p.id)).toEqual(['h2'])
+    expect(eligiblePremiumPlayers({ players, roundUsedPlayerIds: ['h1', 'h2'] }, 'honey')).toEqual([])
+
+    // In ordinary rally, skips used players
+    expect(nextRallyPlayerId({ playerOrder, roundUsedPlayerIds: ['h1'] })).toBe('b1')
+    expect(nextRallyPlayerId({ playerOrder, roundUsedPlayerIds: ['h1', 'b1'] })).toBe('h2')
+    expect(nextRallyPlayerId({ playerOrder, roundUsedPlayerIds: ['h1', 'b1', 'h2'] })).toBe('b2')
+    expect(nextRallyPlayerId({ playerOrder, roundUsedPlayerIds: ['h1', 'b1', 'h2', 'b2'] })).toBeNull()
   })
 })

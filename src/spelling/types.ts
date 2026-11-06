@@ -55,6 +55,9 @@ export interface TurnRecord {
   points: number
   teamId?: TeamId
   saved?: boolean
+  isPremium?: boolean
+  basePoints?: number
+  bonusPoints?: number
 }
 
 export interface CurrentTurn {
@@ -69,6 +72,18 @@ export interface CurrentTurn {
   saveActive?: boolean
   saveEndsAt?: number
   saveDeclined?: boolean
+  isPremium?: boolean
+  basePoints?: number
+  bonusPoints?: number
+}
+
+export interface PremiumBank {
+  round: number
+  startPoints: number
+  remainingPoints: number
+  controllingTeamId: TeamId
+  carriedCategory: Category
+  selectedPlayerId?: string | null
 }
 
 export interface FaceOff {
@@ -97,6 +112,7 @@ export interface FaceOffRecord {
   wordId: string
   winnerPlayerId?: string
   winnerTeamId?: TeamId
+  points?: number
 }
 
 export interface SpellingRoom {
@@ -114,6 +130,8 @@ export interface SpellingRoom {
   faceOff: FaceOff | null
   faceOffHistory: FaceOffRecord[]
   faceOffRotationOffset: number
+  premiumBank: PremiumBank | null
+  roundUsedPlayerIds: string[]
   openingCategory: Category | null
   history: TurnRecord[]
   usedWordIds: string[]

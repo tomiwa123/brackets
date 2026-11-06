@@ -1,4 +1,4 @@
-import type { Category, CurrentTurn, Difficulty, GameMode, Player, SpellingRoom, Team, TeamId, WordCard } from './types'
+import type { Category, CurrentTurn, Difficulty, FaceOffKind, GameMode, Player, SpellingRoom, Team, TeamId, WordCard } from './types'
 
 export const TOTAL_ROUNDS = 3
 export const ROUND_LABELS = [
@@ -110,6 +110,34 @@ export function pointsForRound(round: number): number {
   return Math.min(TOTAL_ROUNDS, Math.max(1, round))
 }
 
+export function startingPremiumBank(round: number, playerCount: number): number {
+  const isCompact = playerCount <= 6
+  return isCompact ? round * 2 : round * 3
+}
+
+export function faceOffPoints(round: number, kind: FaceOffKind): number {
+  return kind === 'tiebreak' ? 1 : pointsForRound(round) + 1
+}
+
+export function premiumChunkPoints(round: number): number {
+  return pointsForRound(round)
+}
+
+export function eligiblePremiumPlayers(
+  room: Pick<SpellingRoom, 'players' | 'roundUsedPlayerIds'>,
+  teamId: TeamId,
+): Player[] {
+  const used = room.roundUsedPlayerIds ?? []
+  return room.players.filter((player) => player.teamId === teamId && !used.includes(player.id))
+}
+
+export function nextRallyPlayerId(
+  room: Pick<SpellingRoom, 'playerOrder' | 'roundUsedPlayerIds'>,
+): string | null {
+  const used = room.roundUsedPlayerIds ?? []
+  return room.playerOrder.find((id) => !used.includes(id)) ?? null
+}
+
 export function eligibleTemporaryJudges(room: Pick<SpellingRoom, 'hostId' | 'temporaryHostId' | 'players' | 'playerOrder'>): Player[] {
   const activeHost = activeHostId(room)
   return room.playerOrder
@@ -153,7 +181,7 @@ export function drawWord(
   category: Category,
   difficulty: Difficulty,
   usedWordIds: string[],
-  options: { mode?: GameMode; random?: () => number } = {},
+  options: { mode?: GameMode; premiumOnly?: boolean; random?: () => number } = {},
 ): WordCard {
   const random = options.random ?? Math.random
   const unused = bank.filter((card) =>
@@ -164,6 +192,27 @@ export function drawWord(
   const fallback = bank.filter((card) =>
     card.difficulty === difficulty && !usedWordIds.includes(card.id),
   )
+
+  if (options.premiumOnly) {
+    const hardUnused = unused.filter((card) => card.teamSelectionWeight === 2)
+    const midUnused = unused.filter((card) => card.teamSelectionWeight === 1)
+    const hardFallback = fallback.filter((card) => card.teamSelectionWeight === 2)
+    const midFallback = fallback.filter((card) => card.teamSelectionWeight === 1)
+    const premiumPool = hardUnused.length > 0
+      ? hardUnused
+      : midUnused.length > 0
+        ? midUnused
+        : unused.length > 0
+          ? unused
+          : hardFallback.length > 0
+            ? hardFallback
+            : midFallback.length > 0
+              ? midFallback
+              : fallback
+    if (premiumPool.length === 0) throw new Error('WORD_BANK_EXHAUSTED')
+    return premiumPool[Math.floor(random() * premiumPool.length)]
+  }
+
   const weighted = (cards: WordCard[]) => options.mode === 'team'
     ? cards.flatMap((card) => Array.from({ length: card.teamSelectionWeight ?? 1 }, () => card))
     : cards

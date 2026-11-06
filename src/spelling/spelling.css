@@ -65,6 +65,50 @@ button { font:inherit; }
 .save-decision-status{position:fixed;left:50%;bottom:18px;z-index:12;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:var(--ink);color:white;padding:12px 16px;border-radius:30px;box-shadow:0 8px 25px rgba(0,0,0,.22)}
 .faceoff-setup-actions button{display:grid;grid-template-columns:auto 1fr;min-width:210px;text-align:left}.faceoff-setup-actions button small{grid-column:1/-1;text-transform:uppercase;letter-spacing:.12em;font-size:9px}
 .faceoff-setup-actions .unlock-buzzers{background:var(--ink);color:white;border:3px solid var(--honey);box-shadow:4px 4px 0 var(--honey)}.control-help{font-size:12px;color:#6d655b}
-.presentation-result{padding:0 0 55px}.presentation-celebration{padding:50px 20px 15px}.presentation-celebration>span{display:grid;place-items:center;width:110px;height:110px;margin:auto;border-radius:50%;background:var(--honey);font:900 70px 'Fraunces'}
-.presentation-result.incorrect .presentation-celebration>span{background:var(--danger);color:white}.presentation-celebration p{font:900 clamp(70px,12vw,150px)/.9 'Fraunces';margin:25px 0 10px}.presentation-celebration h1{font-size:clamp(35px,6vw,70px);margin:0}.presentation-celebration h2{font-size:24px;color:#6d655b}.presentation-result>.scoreboard{max-width:650px;margin:25px auto}
-@media(max-width:760px){.spelling-clock{margin-left:auto}.temporary-host-banner,.host-handoff{margin:10px 14px}.save-decision-status{width:calc(100% - 28px);box-sizing:border-box;justify-content:center}.huddle-banner>strong{font-size:18px}.presentation-celebration{padding-top:35px}}
+.faceoff-value-tag{display:inline-block;padding:8px 16px;background:var(--honey);border:2px solid var(--ink);font:800 16px 'Fraunces';letter-spacing:.08em;margin:0 auto 12px;box-shadow:4px 4px 0 var(--ink)}
+.faceoff-subtitle{font-size:15px;color:#6d655b;max-width:600px;margin:0 auto 24px}
+.premium-bank-stage{padding:clamp(28px,4vw,50px) clamp(16px,4vw,60px);max-width:960px;margin:auto}
+.premium-bank-meter{background:#fffaf1;border:3px solid var(--team-color,var(--honey));padding:22px;border-radius:6px;box-shadow:6px 6px 0 color-mix(in srgb,var(--team-color,var(--honey)) 30%,transparent);margin-bottom:22px}
+.bank-meter-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:10px}
+.bank-badge{display:inline-flex;align-items:center;gap:6px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;font-size:12px;color:var(--ink)}
+.bank-meter-header strong{font:900 clamp(28px,4vw,40px) 'Fraunces';color:var(--ink)}
+.bank-meter-header strong small{font-size:14px;font-weight:600;color:#6d655b}
+.bank-meter-copy{font-size:14px;color:#554d43;margin:0;line-height:1.45}
+.premium-control-banner{display:flex;align-items:center;gap:14px;background:#fffaf1;border:2px solid var(--line);padding:16px 20px;border-radius:6px;margin-bottom:26px}
+.control-dot{width:16px;height:16px;border-radius:50%;box-shadow:0 0 0 3px rgba(0,0,0,.08)}
+.premium-control-banner small{text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:#786f63;font-size:10px}
+.premium-control-banner h2{margin:3px 0 0;font:800 24px 'Fraunces'}
+.premium-roster-section h3{font:800 22px 'Fraunces';margin-bottom:6px}
+.roster-help{font-size:14px;color:#6d655b;margin-bottom:16px}
+.premium-player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+.premium-player-card{display:grid;gap:6px;padding:16px;border:2px solid var(--line);background:#fffaf1;border-radius:6px;text-align:left;cursor:pointer;transition:transform .12s,box-shadow .12s}
+.premium-player-card b{font:800 18px 'Fraunces'}
+.premium-player-card span{font-size:12px;color:#786f63;font-weight:600}
+.premium-player-card:hover:not(:disabled){transform:translateY(-2px);box-shadow:4px 4px 0 var(--ink)}
+.premium-player-card.selected{border-color:var(--honey);background:#fff4db;box-shadow:5px 5px 0 var(--honey)}
+.premium-player-card.selected span{color:#926707;font-weight:800}
+.premium-player-card.used{opacity:.45;cursor:not-allowed;background:#f3ede2}
+.premium-player-card:disabled{cursor:not-allowed}
+.premium-confirm-box{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;padding:18px 22px;background:#1b1610;color:white;border-radius:6px}
+.premium-confirm-box p{margin:0;font-size:16px}
+.premium-start-button{display:inline-flex;align-items:center;gap:8px;background:var(--honey);color:var(--ink);font-weight:800;border:0;padding:12px 20px;border-radius:4px;cursor:pointer}
+.premium-turn-banner{display:flex;align-items:center;gap:14px;background:#fff2d1;border:2px solid var(--honey);padding:12px 18px;border-radius:6px;margin-bottom:18px}
+.premium-turn-banner small{display:block;text-transform:uppercase;letter-spacing:.12em;font-weight:800;font-size:10px;color:#855c03}
+.premium-turn-banner b{font-size:14px;color:var(--ink)}
+.bank-pill{margin-left:auto;background:var(--ink);color:var(--honey);padding:5px 11px;border-radius:20px;font:800 12px 'Fraunces';white-space:nowrap}
+.bank-meter{display:grid;gap:4px;padding:12px;border:1px solid var(--line);background:#fffaf1;margin-bottom:12px}
+.bank-meter span{display:flex;align-items:center;gap:5px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#6d655b;font-weight:700}
+.bank-meter b{font:900 20px 'Fraunces';color:var(--ink)}
+.bank-empty-alert{display:flex;align-items:center;justify-content:center;gap:7px;background:var(--honey);color:var(--ink);padding:10px 16px;font:800 15px 'Fraunces';letter-spacing:.08em;margin-top:14px}
+.instructions-section{margin-top:32px;padding:24px;border:1px solid var(--line);background:#fffaf1;border-radius:6px}
+.instructions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:16px}
+.instruction-card{padding:16px;background:white;border:1px solid var(--line);display:grid;gap:6px;text-align:left}
+.inst-num{font:900 13px 'Fraunces';color:var(--honey);background:var(--ink);width:26px;height:26px;display:grid;place-items:center;border-radius:50%}
+.instruction-card b{font:800 16px 'Fraunces';margin-top:2px}
+.instruction-card p{margin:0;font-size:13px;color:#635a4f;line-height:1.4}
+.rules-button{display:inline-flex;align-items:center;gap:5px;background:transparent;border:1px solid var(--line);color:#6d655b;padding:6px 10px;border-radius:4px;font-size:12px;cursor:pointer}
+.presentation-bank-card{padding:30px;background:#fffaf1;border:4px solid var(--team-color,var(--honey));max-width:750px;margin:25px auto;display:grid;gap:12px}
+.presentation-bank-card b{font:900 clamp(36px,6vw,64px) 'Fraunces';color:var(--ink)}
+.presentation-bank-card b small{font-size:18px;font-weight:600;color:#6d655b}
+.presentation-bank-card p{margin:0;font-size:22px;color:#4c443b}
+
