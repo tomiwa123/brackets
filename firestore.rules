@@ -15,7 +15,8 @@ service cloud.firestore {
           'roomCode', 'title', 'hostId', 'temporaryHostId', 'status', 'players', 'playerOrder',
           'turnIndex', 'currentTurn', 'history', 'usedWordIds', 'revision',
           'createdAt', 'updatedAt', 'mode', 'teams', 'faceOff',
-          'faceOffHistory', 'faceOffRotationOffset', 'openingCategory'
+          'faceOffHistory', 'faceOffRotationOffset', 'premiumBank',
+          'roundUsedPlayerIds', 'openingCategory'
         ])
         && data.roomCode == roomCode
         && data.roomCode.size() == 4
@@ -31,6 +32,9 @@ service cloud.firestore {
         && data.faceOffHistory.size() <= 20
         && data.faceOffRotationOffset is int
         && data.faceOffRotationOffset >= 0
+        && validPremiumBank(data.premiumBank)
+        && data.roundUsedPlayerIds is list
+        && data.roundUsedPlayerIds.size() <= 20
         && (data.status == 'lobby' || data.status == 'playing'
           || data.status == 'finished' || data.status == 'closed')
         && data.players is list
@@ -48,6 +52,34 @@ service cloud.firestore {
         && data.revision >= 0
         && data.createdAt is int
         && data.updatedAt is int;
+    }
+
+    function validPremiumBank(bank) {
+      return bank == null
+        || (bank is map
+          && bank.keys().hasOnly([
+            'round', 'startPoints', 'remainingPoints', 'controllingTeamId',
+            'carriedCategory', 'selectedPlayerId'
+          ])
+          && bank.keys().hasAll([
+            'round', 'startPoints', 'remainingPoints', 'controllingTeamId',
+            'carriedCategory'
+          ])
+          && bank.round is int
+          && bank.round >= 1
+          && bank.round <= 3
+          && bank.startPoints is int
+          && bank.startPoints >= 0
+          && bank.startPoints <= 9
+          && bank.remainingPoints is int
+          && bank.remainingPoints >= 0
+          && bank.remainingPoints <= bank.startPoints
+          && (bank.controllingTeamId == 'honey' || bank.controllingTeamId == 'blue')
+          && bank.carriedCategory is string
+          && bank.carriedCategory.size() <= 40
+          && (!('selectedPlayerId' in bank)
+            || bank.selectedPlayerId == null
+            || (bank.selectedPlayerId is string && bank.selectedPlayerId.size() <= 80)));
     }
 
     // A casual, no-account party game. The strict shape and bounds keep this

@@ -161,6 +161,8 @@ try {
     faceOff: null,
     faceOffHistory: [],
     faceOffRotationOffset: 0,
+    premiumBank: null,
+    roundUsedPlayerIds: [],
     openingCategory: null,
     history: [],
     usedWordIds: [],
@@ -177,6 +179,33 @@ try {
     revision: 2,
     updatedAt: 3,
   }));
+  await assertSucceeds(setDoc(spellingReference, {
+    ...spellingRoom,
+    mode: 'team',
+    premiumBank: {
+      round: 1,
+      startPoints: 2,
+      remainingPoints: 2,
+      controllingTeamId: 'honey',
+      carriedCategory: 'Science & Nature',
+      selectedPlayerId: null,
+    },
+    roundUsedPlayerIds: ['host-1'],
+    revision: 3,
+    updatedAt: 4,
+  }));
+  await assertFails(setDoc(spellingReference, {
+    ...spellingRoom,
+    premiumBank: {
+      round: 1,
+      startPoints: 2,
+      remainingPoints: 3,
+      controllingTeamId: 'honey',
+      carriedCategory: 'Science & Nature',
+    },
+    revision: 4,
+    updatedAt: 5,
+  }));
   const playersAtCapacity = Array.from({ length: 20 }, (_, index) => ({
     id: `player-${index + 1}`,
     name: `Player ${index + 1}`,
@@ -187,8 +216,8 @@ try {
     ...spellingRoom,
     players: playersAtCapacity,
     playerOrder: playersAtCapacity.map((player) => player.id),
-    revision: 3,
-    updatedAt: 4,
+    revision: 4,
+    updatedAt: 5,
   }));
   const playersOverCapacity = [...playersAtCapacity, {
     id: 'player-21', name: 'Player 21', score: 0, turns: 0,
@@ -197,8 +226,8 @@ try {
     ...spellingRoom,
     players: playersOverCapacity,
     playerOrder: playersOverCapacity.map((player) => player.id),
-    revision: 4,
-    updatedAt: 5,
+    revision: 5,
+    updatedAt: 6,
   }));
   await assertFails(setDoc(spellingReference, { ...spellingRoom, hostId: 'hijacker', revision: 2 }));
   await assertFails(setDoc(doc(firestore, 'spellingRooms/TOOLONG'), { ...spellingRoom, roomCode: 'TOOLONG' }));
