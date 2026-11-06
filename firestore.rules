@@ -16,7 +16,7 @@ service cloud.firestore {
           'turnIndex', 'currentTurn', 'history', 'usedWordIds', 'revision',
           'createdAt', 'updatedAt', 'mode', 'teams', 'faceOff',
           'faceOffHistory', 'faceOffRotationOffset', 'premiumBank',
-          'roundUsedPlayerIds', 'openingCategory'
+          'roundUsedPlayerIds', 'openingCategory', 'bonusGame'
         ])
         && data.roomCode == roomCode
         && data.roomCode.size() == 4
@@ -33,6 +33,7 @@ service cloud.firestore {
         && data.faceOffRotationOffset is int
         && data.faceOffRotationOffset >= 0
         && validPremiumBank(data.premiumBank)
+        && (!('bonusGame' in data) || validBonusGame(data.bonusGame))
         && data.roundUsedPlayerIds is list
         && data.roundUsedPlayerIds.size() <= 20
         && (data.status == 'lobby' || data.status == 'playing'
@@ -80,6 +81,18 @@ service cloud.firestore {
           && (!('selectedPlayerId' in bank)
             || bank.selectedPlayerId == null
             || (bank.selectedPlayerId is string && bank.selectedPlayerId.size() <= 80)));
+    }
+
+    function validBonusGame(game) {
+      return game == null || (game is map
+        && game.keys().hasOnly(['kind','phase','controllingTeamId','activeTeamId','category','wordIds','wordIndex','strikes','boardValue','activePlayerId','playerIndexes','ruling'])
+        && (game.kind == 'feud' || game.kind == 'relay')
+        && (game.phase == 'playing' || game.phase == 'steal' || game.phase == 'complete')
+        && game.wordIds is list && game.wordIds.size() <= 4
+        && game.wordIndex is int && game.wordIndex >= 0 && game.wordIndex <= 3
+        && game.strikes is int && game.strikes >= 0 && game.strikes <= 2
+        && game.boardValue is int && game.boardValue >= 0 && game.boardValue <= 3
+        && game.activePlayerId is string && game.activePlayerId.size() <= 80);
     }
 
     // A casual, no-account party game. The strict shape and bounds keep this

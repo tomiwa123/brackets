@@ -1,4 +1,4 @@
-import type { Category, CurrentTurn, Difficulty, FaceOffKind, GameMode, Player, SpellingRoom, Team, TeamId, WordCard } from './types'
+import type { BonusGameKind, Category, CurrentTurn, Difficulty, FaceOffKind, GameMode, Player, SpellingRoom, Team, TeamId, WordCard } from './types'
 
 export const TOTAL_ROUNDS = 3
 export const ROUND_LABELS = [
@@ -121,6 +121,15 @@ export function faceOffPoints(round: number, kind: FaceOffKind): number {
 
 export function premiumChunkPoints(round: number): number {
   return pointsForRound(round)
+}
+
+export function bonusGameValue(kind: BonusGameKind): number {
+  return kind === 'feud' ? 3 : 2
+}
+
+export function nextTeamPlayer(players: Player[], teamId: TeamId, index: number): Player | undefined {
+  const team = players.filter((player) => player.teamId === teamId)
+  return team[index % Math.max(1, team.length)]
 }
 
 export function eligiblePremiumPlayers(

@@ -164,6 +164,7 @@ try {
     premiumBank: null,
     roundUsedPlayerIds: [],
     openingCategory: null,
+    bonusGame: null,
     history: [],
     usedWordIds: [],
     revision: 0,
@@ -203,6 +204,19 @@ try {
       controllingTeamId: 'honey',
       carriedCategory: 'Science & Nature',
     },
+    revision: 5,
+    updatedAt: 6,
+  }));
+  await assertSucceeds(setDoc(spellingReference, {
+    ...spellingRoom,
+    mode: 'team',
+    status: 'playing',
+    bonusGame: {
+      kind: 'feud', phase: 'playing', controllingTeamId: 'honey', activeTeamId: 'honey',
+      category: 'Internet Brain', wordIds: ['internet-1', 'internet-2', 'internet-3', 'internet-4'],
+      wordIndex: 0, strikes: 0, boardValue: 3, activePlayerId: 'host-1',
+      playerIndexes: { honey: 0, blue: 0 }, ruling: null,
+    },
     revision: 4,
     updatedAt: 5,
   }));
@@ -216,8 +230,8 @@ try {
     ...spellingRoom,
     players: playersAtCapacity,
     playerOrder: playersAtCapacity.map((player) => player.id),
-    revision: 4,
-    updatedAt: 5,
+    revision: 5,
+    updatedAt: 6,
   }));
   const playersOverCapacity = [...playersAtCapacity, {
     id: 'player-21', name: 'Player 21', score: 0, turns: 0,
@@ -226,15 +240,15 @@ try {
     ...spellingRoom,
     players: playersOverCapacity,
     playerOrder: playersOverCapacity.map((player) => player.id),
-    revision: 5,
-    updatedAt: 6,
+    revision: 6,
+    updatedAt: 7,
   }));
   await assertFails(setDoc(spellingReference, { ...spellingRoom, hostId: 'hijacker', revision: 2 }));
   await assertFails(setDoc(doc(firestore, 'spellingRooms/TOOLONG'), { ...spellingRoom, roomCode: 'TOOLONG' }));
   await assertFails(deleteDoc(spellingReference));
 
   await assertFails(setDoc(doc(firestore, 'unrelated/document'), { open: true }));
-  console.log('Firestore rules: 23 assertions passed.');
+  console.log('Firestore rules: 24 assertions passed.');
 } finally {
   await environment.cleanup();
 }

@@ -13,6 +13,8 @@ export type Hint = 'definition' | 'origin' | 'sentence'
 export type GameMode = 'classic' | 'team'
 export type TeamId = 'honey' | 'blue'
 export type ReplayChoice = 'same' | 'shuffle' | 'setup'
+export type BonusGameKind = 'feud' | 'relay'
+export type BonusGamePhase = 'playing' | 'steal' | 'complete'
 export type FaceOffKind = 'round' | 'tiebreak'
 export type FaceOffStatus = 'ready' | 'open' | 'attempt' | 'steal' | 'category'
 
@@ -115,6 +117,21 @@ export interface FaceOffRecord {
   points?: number
 }
 
+export interface BonusGame {
+  kind: BonusGameKind
+  phase: BonusGamePhase
+  controllingTeamId: TeamId
+  activeTeamId: TeamId
+  category: Category
+  wordIds: string[]
+  wordIndex: number
+  strikes: number
+  boardValue: number
+  activePlayerId: string
+  playerIndexes: Record<TeamId, number>
+  ruling: 'correct' | 'incorrect' | null
+}
+
 export interface SpellingRoom {
   roomCode: string
   title: string
@@ -133,6 +150,7 @@ export interface SpellingRoom {
   premiumBank: PremiumBank | null
   roundUsedPlayerIds: string[]
   openingCategory: Category | null
+  bonusGame: BonusGame | null
   history: TurnRecord[]
   usedWordIds: string[]
   revision: number

@@ -17,6 +17,8 @@ import {
   judgeIdForPlayer,
   judgeIdForTurn,
   makeTurn,
+  nextTeamPlayer,
+  bonusGameValue,
   nextRallyPlayerId,
   nextTurn,
   pointsForRound,
@@ -29,7 +31,7 @@ import {
   validatedTeamName,
 } from './gameEngine'
 import { CATEGORIES } from './types'
-import type { Category, CurrentTurn, FaceOff, FaceOffKind, FaceOffRecord, GameMode, Hint, PremiumBank, ReplayChoice, SpellingRoom, TeamId } from './types'
+import type { BonusGame, BonusGameKind, Category, CurrentTurn, FaceOff, FaceOffKind, FaceOffRecord, GameMode, Hint, PremiumBank, ReplayChoice, SpellingRoom, TeamId } from './types'
 import { WORD_BANK } from './words'
 import { MAX_PLAYERS } from './config'
 
@@ -135,6 +137,7 @@ function normalizeRoom(room: SpellingRoom): SpellingRoom {
     premiumBank: room.premiumBank ?? null,
     roundUsedPlayerIds: room.roundUsedPlayerIds ?? [],
     openingCategory: room.openingCategory ?? null,
+    bonusGame: room.bonusGame ?? null,
   }
 }
 
@@ -216,6 +219,7 @@ export async function createSpellingRoom(hostName: string): Promise<string> {
         premiumBank: null,
         roundUsedPlayerIds: [],
         openingCategory: null,
+        bonusGame: null,
         history: [],
         usedWordIds: [],
         revision: 0,
@@ -460,6 +464,7 @@ export async function startSpellingGame(code: string, actorId: string): Promise<
       premiumBank: null,
       roundUsedPlayerIds: [],
       openingCategory: null,
+      bonusGame: null,
     }
     return gameMode(room) === 'team' ? { ...started, ...createFaceOff(started, 1, 'round') } : started
   })
@@ -1055,11 +1060,82 @@ export async function replayRoom(code: string, actorId: string, choice: ReplayCh
       premiumBank: null,
       roundUsedPlayerIds: [],
       openingCategory: null,
+      bonusGame: null,
       history: [],
       usedWordIds: [],
     }
     return startImmediately && gameMode(room) === 'team'
       ? { ...resetRoom, ...createFaceOff(resetRoom, 1, 'round') }
       : resetRoom
+  })
+}
+
+export async function startBonusGame(code: string, actorId: string, kind: BonusGameKind): Promise<void> {
+  await mutate(code, (room) => {
+    requireHost(room, actorId)
+    if (room.status !== 'finished' || gameMode(room) !== 'team') throw new Error('BONUS_UNAVAILABLE')
+    const leader = [...room.faceOffHistory].reverse().find((record) => record.winnerTeamId)?.winnerTeamId
+      ?? rankedTeams(room.teams)[0]?.id
+      ?? 'honey'
+    const category = FACE_OFF_CATEGORIES[(room.faceOffHistory.length + room.history.length) % FACE_OFF_CATEGORIES.length]
+    const count = kind === 'feud' ? 4 : 2
+    const difficulty = kind === 'feud' ? 'tricky' : 'menace'
+    const words = [...room.usedWordIds]
+    const wordIds: string[] = []
+    for (let index = 0; index < count; index += 1) {
+      const word = drawWord(WORD_BANK, category, difficulty, words, { mode: 'team', premiumOnly: kind === 'relay' })
+      words.push(word.id)
+      wordIds.push(word.id)
+    }
+    const first = nextTeamPlayer(room.players, leader, 0)
+    if (!first) throw new Error('NEED_TEAMS')
+    const bonusGame: BonusGame = {
+      kind, phase: 'playing', controllingTeamId: leader, activeTeamId: leader, category,
+      wordIds, wordIndex: 0, strikes: 0, boardValue: bonusGameValue(kind), activePlayerId: first.id,
+      playerIndexes: { honey: 0, blue: 0 }, ruling: null,
+    }
+    return { ...room, status: 'playing', bonusGame, usedWordIds: words }
+  })
+}
+
+export async function judgeBonusGame(code: string, actorId: string, correct: boolean): Promise<void> {
+  await mutate(code, (room) => {
+    requireHost(room, actorId)
+    const bonus = room.bonusGame
+    if (!bonus || bonus.phase === 'complete' || bonus.ruling) return room
+    const other: TeamId = bonus.activeTeamId === 'honey' ? 'blue' : 'honey'
+    if (bonus.kind === 'relay') {
+      const last = bonus.wordIndex >= bonus.wordIds.length - 1
+      const nextTeam: TeamId = other
+      const awarded = correct ? bonus.boardValue : 0
+      return {
+        ...room,
+        status: last ? 'finished' : 'playing',
+        teams: room.teams.map((team) => team.id === bonus.activeTeamId ? { ...team, score: team.score + awarded } : team),
+        bonusGame: last ? { ...bonus, phase: 'complete', ruling: correct ? 'correct' : 'incorrect' } : {
+          ...bonus, wordIndex: bonus.wordIndex + 1, activeTeamId: nextTeam,
+          activePlayerId: nextTeamPlayer(room.players, nextTeam, 0)!.id, ruling: null,
+        },
+      }
+    }
+    if (bonus.phase === 'steal') {
+      const awarded = correct ? bonus.boardValue : 0
+      return { ...room, status: 'finished', teams: room.teams.map((team) => team.id === bonus.activeTeamId ? { ...team, score: team.score + awarded } : team), bonusGame: { ...bonus, phase: 'complete', ruling: correct ? 'correct' : 'incorrect' } }
+    }
+    if (correct) {
+      const nextIndex = bonus.wordIndex + 1
+      if (nextIndex >= 3) {
+        return { ...room, status: 'finished', teams: room.teams.map((team) => team.id === bonus.activeTeamId ? { ...team, score: team.score + bonus.boardValue } : team), bonusGame: { ...bonus, phase: 'complete', ruling: 'correct', wordIndex: 2 } }
+      }
+      const pi = bonus.playerIndexes[bonus.activeTeamId] + 1
+      return { ...room, bonusGame: { ...bonus, wordIndex: nextIndex, playerIndexes: { ...bonus.playerIndexes, [bonus.activeTeamId]: pi }, activePlayerId: nextTeamPlayer(room.players, bonus.activeTeamId, pi)!.id } }
+    }
+    const strikes = bonus.strikes + 1
+    if (strikes >= 2) {
+      const stealTeam: TeamId = other
+      return { ...room, bonusGame: { ...bonus, phase: 'steal', activeTeamId: stealTeam, activePlayerId: nextTeamPlayer(room.players, stealTeam, 0)!.id, wordIndex: 3, boardValue: Math.max(1, 3 - bonus.wordIndex), strikes } }
+    }
+    const pi = bonus.playerIndexes[bonus.activeTeamId] + 1
+    return { ...room, bonusGame: { ...bonus, strikes, playerIndexes: { ...bonus.playerIndexes, [bonus.activeTeamId]: pi }, activePlayerId: nextTeamPlayer(room.players, bonus.activeTeamId, pi)!.id } }
   })
 }

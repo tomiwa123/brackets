@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   activeHostId,
+  bonusGameValue,
   alternatingTeamOrder,
   assignBalancedTeams,
   canRenameTeam,
@@ -14,6 +15,7 @@ import {
   hasHostControl,
   judgeIdForPlayer,
   nextRallyPlayerId,
+  nextTeamPlayer,
   nextTurn,
   pointsForRound,
   premiumChunkPoints,
@@ -30,6 +32,17 @@ describe('spelling game engine', () => {
     expect([0, 1, 2, 3, 4, 5].map((i) => roundForTurn(i, 2))).toEqual([1, 1, 2, 2, 3, 3])
     expect([1, 2, 3].map(difficultyForRound)).toEqual(['warmup', 'tricky', 'menace'])
     expect([1, 2, 3].map(pointsForRound)).toEqual([1, 2, 3])
+  })
+
+  it('sets compact bonus values and rotates every teammate in bonus play', () => {
+    const players: Player[] = [
+      { id: 'h1', name: 'H1', score: 0, turns: 0, teamId: 'honey' },
+      { id: 'h2', name: 'H2', score: 0, turns: 0, teamId: 'honey' },
+      { id: 'b1', name: 'B1', score: 0, turns: 0, teamId: 'blue' },
+    ]
+    expect(bonusGameValue('feud')).toBe(3)
+    expect(bonusGameValue('relay')).toBe(2)
+    expect([0, 1, 2].map((index) => nextTeamPlayer(players, 'honey', index)?.id)).toEqual(['h1', 'h2', 'h1'])
   })
 
   it('never draws a used word and respects category', () => {

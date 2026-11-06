@@ -19,6 +19,7 @@ import {
   isPlaythroughMode,
   joinCodeFromPath,
   judgeFaceOff,
+  judgeBonusGame,
   joinSpellingRoom,
   judgeTurn,
   listenToSpellingRoom,
@@ -36,6 +37,7 @@ import {
   shuffleTeamAssignments,
   skipWord,
   startSpellingGame,
+  startBonusGame,
   undoRuling,
   unlockFaceOff,
 } from './firestore'
@@ -705,6 +707,12 @@ function PresentationView({ room }: { room: SpellingRoom }) {
     const winners = leaders.filter((team) => team.score === leaders[0]?.score)
     return <main className="spell-shell presentation-page"><span className="bee-mark">B</span><p className="eyebrow"><Sparkles size={15} /> That’s the bee</p><h1>{winners.length > 1 ? 'A shared team crown.' : `${winners[0]?.name} own the room.`}</h1><p className="winner-copy">Final score: {room.teams.map((team) => `${team.name} ${team.score}`).join(' · ')}</p><div className="final-card"><Scoreboard room={room} /></div><GameAwards room={room} /></main>
   }
+  if (room.bonusGame) {
+    const bonus = room.bonusGame
+    const team = room.teams.find((item) => item.id === bonus.activeTeamId)
+    const player = room.players.find((item) => item.id === bonus.activePlayerId)
+    return <main className="spell-shell presentation-page presentation-live"><span className="bee-mark">B</span><p className="eyebrow">{bonus.kind === 'relay' ? 'Spelling Relay finale' : 'Full Feud · Party Rules'}</p><h1>{bonus.phase === 'steal' ? `${team?.name}, steal the board.` : `${player?.name}, you’re up.`}</h1><Scoreboard room={room} />{bonus.kind === 'feud' ? <div className="presentation-bank-card" style={{ '--team-color': team?.color } as CSSProperties}><b>{Math.min(bonus.wordIndex, 3)} / 3 cleared</b><p>{bonus.strikes} of 2 strikes · {bonus.boardValue} points remain</p></div> : <div className="presentation-bank-card" style={{ '--team-color': team?.color } as CSSProperties}><b>One letter each</b><p>No backtracking. Keep the rhythm moving.</p></div>}</main>
+  }
   if (room.faceOff) {
     const faceOff = room.faceOff
     const word = getWord(faceOff.wordId)!
@@ -854,7 +862,27 @@ function FinalScreen({ room, act }: { room: SpellingRoom; act: (work: () => Prom
   const winnerCopy = isTeam
     ? `${teamWinners.map((team) => team.name).join(' & ')} ${teamWinners.length > 1 ? 'finish tied at the top' : 'take the night'} with ${teamTopScore} points.`
     : `${winners.map((player) => player.name).join(' & ')} ${winners.length > 1 ? 'finish tied at the top' : 'takes the night'} with ${topScore} points.`
-  return <main className="spell-shell final-page"><span className="bee-mark">B</span><TemporaryHostControl room={room} act={act} /><p className="eyebrow"><Sparkles size={15} /> That’s the bee</p><h1>{headline}</h1><p className="winner-copy">{winnerCopy}</p><div className="final-card"><Scoreboard room={room} /></div><GameAwards room={room} />{hasHostControl(room, me) && <div className="continuation-menu"><p className="eyebrow">What’s next?</p><div className="continuation-grid"><button className="continuation-primary" onClick={() => act(() => replayRoom(room.roomCode, me, 'same'))}><Trophy /><b>Run it back</b><span>Same format{isTeam ? ' and teams' : ''}</span></button>{isTeam && <button onClick={() => act(() => replayRoom(room.roomCode, me, 'shuffle'))}><Shuffle /><b>Shuffle teams</b><span>Same format, fresh sides</span></button>}<button onClick={() => act(() => replayRoom(room.roomCode, me, 'setup'))}><Settings2 /><b>Change setup</b><span>Choose the format and teams</span></button></div></div>}</main>
+  return <main className="spell-shell final-page"><span className="bee-mark">B</span><TemporaryHostControl room={room} act={act} /><p className="eyebrow"><Sparkles size={15} /> That’s the bee</p><h1>{headline}</h1><p className="winner-copy">{winnerCopy}</p><div className="final-card"><Scoreboard room={room} /></div><GameAwards room={room} />{hasHostControl(room, me) && <div className="continuation-menu"><p className="eyebrow">What’s next?</p><div className="continuation-grid">{isTeam && <button className="bonus-choice feud-choice" onClick={() => act(() => startBonusGame(room.roomCode, me, 'feud'))}><Crown /><b>Party Rules</b><span>Three-word board · two strikes · one steal</span></button>}{isTeam && <button className="bonus-choice relay-choice" onClick={() => act(() => startBonusGame(room.roomCode, me, 'relay'))}><Zap /><b>Spelling Relay</b><span>One letter per teammate · no backtracking</span></button>}<button className="continuation-primary" onClick={() => act(() => replayRoom(room.roomCode, me, 'same'))}><Trophy /><b>Run it back</b><span>Same format{isTeam ? ' and teams' : ''}</span></button>{isTeam && <button onClick={() => act(() => replayRoom(room.roomCode, me, 'shuffle'))}><Shuffle /><b>Shuffle teams</b><span>Same format, fresh sides</span></button>}<button onClick={() => act(() => replayRoom(room.roomCode, me, 'setup'))}><Settings2 /><b>Change setup</b><span>Choose the format and teams</span></button></div></div>}</main>
+}
+
+function BonusGameView({ room, act }: { room: SpellingRoom; act: (work: () => Promise<void>) => void }) {
+  const me = getSpellingPlayerId()
+  const bonus = room.bonusGame!
+  const team = room.teams.find((item) => item.id === bonus.activeTeamId)!
+  const player = room.players.find((item) => item.id === bonus.activePlayerId)
+  const word = getWord(bonus.wordIds[bonus.wordIndex])!
+  const isRelay = bonus.kind === 'relay'
+  return <main className="spell-shell bonus-game-page" style={{ '--team-color': team.color } as CSSProperties}>
+    <TemporaryHostControl room={room} act={act} />
+    <p className="eyebrow">{isRelay ? <Zap size={15} /> : <Crown size={15} />} {isRelay ? 'Spelling Relay finale' : 'Full Feud · Party Rules'}</p>
+    <h1>{bonus.phase === 'steal' ? `${team.name}, steal the board.` : `${team.name}, take the floor.`}</h1>
+    <Scoreboard room={room} />
+    {!isRelay && <div className="bonus-board"><b>{Math.min(bonus.wordIndex, 3)} / 3 words cleared</b><span>{'✕'.repeat(bonus.strikes)}{'○'.repeat(Math.max(0, 2 - bonus.strikes))}</span><small>{bonus.boardValue} points on the board</small></div>}
+    {isRelay && <div className="relay-rules"><b>One letter per teammate.</b><span>Rotate down the line. No backtracking. The host judges the complete word.</span></div>}
+    <section className="bonus-stage"><small>{bonus.category} · {team.name}</small><h2>{player?.name}{isRelay ? ' starts the relay' : ' spells now'}</h2><p>{isRelay ? 'Say one letter, then pass immediately to the next teammate.' : bonus.phase === 'steal' ? 'Huddle, then spell the final steal word for every point left.' : 'Teammates rotate after every word. Two misses open one steal.'}</p>
+      {hasHostControl(room, me) ? <><div className="secret-answer"><small>Host only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><button className="presentation-audio" onClick={() => speak(word.word)}><Volume2 /> Play word</button><div className="faceoff-actions"><button className="correct" onClick={() => act(() => judgeBonusGame(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeBonusGame(room.roomCode, me, false))}><X /> Not quite</button></div></> : <div className="waiting-copy">The host has the answer and will rule.</div>}
+    </section>
+  </main>
 }
 
 function Room({ code, onLeave }: { code: string; onLeave: () => void }) {
@@ -874,7 +902,7 @@ function Room({ code, onLeave }: { code: string; onLeave: () => void }) {
   if (!room) return <main className="spell-shell loading-page"><span className="bee-mark">B</span><p>{error || 'Finding your room…'}</p>{error && <button onClick={onLeave}>Back to start</button>}</main>
   if (room.status === 'closed') return <main className="spell-shell loading-page"><p>This room has closed.</p><button onClick={onLeave}>Start over</button></main>
 
-  return <>{error && <div className="toast-error">{error}<button onClick={() => setError('')}>×</button></div>}{room.status === 'lobby' ? <Lobby room={room} act={act} /> : room.status === 'finished' ? <FinalScreen room={room} act={act} /> : room.faceOff ? <FaceOffView room={room} act={act} /> : (room.premiumBank && !room.currentTurn) ? <PremiumBankView room={room} act={act} /> : !room.currentTurn?.wordId ? <CategoryPicker room={room} act={act} /> : <TurnView room={room} act={act} />}</>
+  return <>{error && <div className="toast-error">{error}<button onClick={() => setError('')}>×</button></div>}{room.status === 'lobby' ? <Lobby room={room} act={act} /> : room.status === 'finished' ? <FinalScreen room={room} act={act} /> : room.bonusGame ? <BonusGameView room={room} act={act} /> : room.faceOff ? <FaceOffView room={room} act={act} /> : (room.premiumBank && !room.currentTurn) ? <PremiumBankView room={room} act={act} /> : !room.currentTurn?.wordId ? <CategoryPicker room={room} act={act} /> : <TurnView room={room} act={act} />}</>
 }
 
 type PlaythroughPersona = PlaythroughPlayerPersona | 'presentation'
