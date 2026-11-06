@@ -1,10 +1,11 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { BellRing, Check, Clipboard, Crown, Headphones, MonitorUp, Pencil, RotateCcw, Settings2, ShieldCheck, Shuffle, Sparkles, Star, Trophy, UserPlus, Users, Volume2, X, Zap } from 'lucide-react'
+import { BellRing, Check, Clipboard, Clock3, Crown, Headphones, MonitorUp, Pencil, RotateCcw, Settings2, ShieldCheck, Shuffle, Sparkles, Star, Trophy, UserCog, UserPlus, Users, Volume2, X, Zap } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   addGuest,
   activateSaveTheBee,
   advanceTurn,
+  assignTemporaryHost,
   buzzFaceOff,
   chooseCategory,
   chooseFaceOffRallyCategory,
@@ -39,8 +40,10 @@ import {
 } from './firestore'
 import type { PlaythroughPlayerPersona } from './firestore'
 import {
+  activeHostId,
   eligibleTemporaryJudges,
   gameMode,
+  hasHostControl,
   judgeIdForTurn,
   rankedPlayers,
   rankedTeams,
@@ -67,6 +70,8 @@ function messageFor(error: unknown): string {
     NEED_JUDGE: 'At least one other player must join on their phone so they can judge your turns.',
     NEED_TEAMS: 'Team Showdown needs at least four players and someone on each team.',
     HOST_ONLY: 'Only the host can do that.',
+    OWNER_ONLY: 'Only the original host can hand off or reclaim host control.',
+    INVALID_TEMP_HOST: 'Choose a player who joined on their own device.',
     JUDGE_ONLY: 'Only this turn’s judge can do that.',
     NOT_YOUR_TURN: 'The current speller chooses this category.',
     TEAM_ONLY: 'Only the active team can call Save the Bee.',
@@ -166,7 +171,7 @@ function Scoreboard({ room, compact = false }: { room: SpellingRoom; compact?: b
     <div className={compact ? 'scoreboard compact' : 'scoreboard'}>
       {rankedPlayers(room.players).map((player, index) => (
         <div className="score-row" key={player.id}>
-          <span className="rank">{index + 1}</span><span className="score-name">{player.name}{player.id === room.hostId && <Crown size={13} />}</span><strong>{player.score}</strong>
+          <span className="rank">{index + 1}</span><span className="score-name">{player.name}{player.id === room.hostId && <Crown size={13} />}{player.id === room.temporaryHostId && <UserCog size={13} />}</span><strong>{player.score}</strong>
         </div>
       ))}
     </div>
@@ -238,7 +243,7 @@ function TeamNameEditor({ room, teamId }: { room: SpellingRoom; teamId: 'honey' 
 
 function TeamSetup({ room, act }: { room: SpellingRoom; act: (work: () => Promise<void>) => void }) {
   const me = getSpellingPlayerId()
-  const isHost = room.hostId === me
+  const isHost = hasHostControl(room, me)
   return (
     <section className="team-setup">
       <div className="team-setup-heading">
@@ -252,7 +257,7 @@ function TeamSetup({ room, act }: { room: SpellingRoom; act: (work: () => Promis
             <div className="team-roster">
               {room.players.filter((player) => player.teamId === team.id).map((player) => (
                 <button key={player.id} disabled={!isHost} onClick={() => act(() => movePlayerToTeam(room.roomCode, me, player.id, team.id === 'honey' ? 'blue' : 'honey'))}>
-                  <span>{player.name}</span>{player.id === room.hostId && <Crown size={13} />}{isHost && <small>Move →</small>}
+                  <span>{player.name}</span>{player.id === room.hostId && <Crown size={13} />}{player.id === room.temporaryHostId && <UserCog size={13} />}{isHost && <small>Move →</small>}
                 </button>
               ))}
               {!room.players.some((player) => player.teamId === team.id) && <p>No players yet</p>}
@@ -265,9 +270,33 @@ function TeamSetup({ room, act }: { room: SpellingRoom; act: (work: () => Promis
   )
 }
 
+function TemporaryHostControl({ room, act }: { room: SpellingRoom; act: (work: () => Promise<void>) => void }) {
+  const me = getSpellingPlayerId()
+  const temporaryHost = room.players.find((player) => player.id === room.temporaryHostId)
+  const delegates = room.players.filter((player) => player.id !== room.hostId && !player.isGuest)
+
+  if (temporaryHost) {
+    return (
+      <div className="temporary-host-banner">
+        <UserCog size={20} />
+        <div><small>Temporary host</small><b>{temporaryHost.name} has the game controls.</b></div>
+        {me === room.hostId && <button onClick={() => act(() => assignTemporaryHost(room.roomCode, me, null))}>Reclaim host controls</button>}
+      </div>
+    )
+  }
+  if (me !== room.hostId || delegates.length === 0) return null
+  return (
+    <details className="host-handoff">
+      <summary><UserCog size={17} /> Assign a temporary host</summary>
+      <p>They can run the game while you step away. You can reclaim control at any time.</p>
+      <div>{delegates.map((player) => <button key={player.id} onClick={() => act(() => assignTemporaryHost(room.roomCode, me, player.id))}>Make {player.name} temporary host</button>)}</div>
+    </details>
+  )
+}
+
 function Lobby({ room, act }: { room: SpellingRoom; act: (work: () => Promise<void>) => void }) {
   const me = getSpellingPlayerId()
-  const isHost = room.hostId === me
+  const isHost = hasHostControl(room, me)
   const [guest, setGuest] = useState('')
   const [copied, setCopied] = useState(false)
   const hasTemporaryJudge = eligibleTemporaryJudges(room).length > 0
@@ -285,6 +314,7 @@ function Lobby({ room, act }: { room: SpellingRoom; act: (work: () => Promise<vo
   return (
     <main className="spell-shell lobby-page">
       <header className="room-header"><span className="bee-mark">B</span><div><small>Spelling bee game night</small><b>Lobby</b></div><span className="live-pill"><i /> Live</span></header>
+      <TemporaryHostControl room={room} act={act} />
       <section className="lobby-grid">
         <div className="room-code-card">
           <p className="eyebrow">Your room code</p>
@@ -301,7 +331,7 @@ function Lobby({ room, act }: { room: SpellingRoom; act: (work: () => Promise<vo
           </div>
           <div className="section-heading"><div><p className="eyebrow">The lineup</p><h1>{room.players.length} of {MAX_PLAYERS} players</h1></div><span>{isHost ? 'You’re hosting' : 'You’re in'}</span></div>
           <div className="player-grid">
-            {room.players.map((player, index) => <div className="player-chip" key={player.id}><b>{index + 1}</b><span>{player.name}</span>{player.id === room.hostId && <Crown size={16} />}{player.isGuest && <small>guest</small>}</div>)}
+            {room.players.map((player, index) => <div className="player-chip" key={player.id}><b>{index + 1}</b><span>{player.name}</span>{player.id === room.hostId && <Crown size={16} />}{player.id === room.temporaryHostId && <UserCog size={16} />}{player.isGuest && <small>guest</small>}</div>)}
           </div>
           {isHost && room.players.length < MAX_PLAYERS && <div className="add-guest"><UserPlus size={20} /><input value={guest} maxLength={28} onChange={(event) => setGuest(event.target.value)} placeholder="Add someone without a phone" /><button onClick={() => { if (guest.trim()) act(async () => { await addGuest(room.roomCode, me, guest); setGuest('') }) }}>Add</button></div>}
           {isTeam && <TeamSetup room={room} act={act} />}
@@ -326,16 +356,16 @@ function CategoryPicker({ room, act }: { room: SpellingRoom; act: (work: () => P
   const me = getSpellingPlayerId()
   const turn = room.currentTurn!
   const player = room.players.find((item) => item.id === turn.playerId)!
-  const mayChoose = me === turn.playerId || me === room.hostId
+  const mayChoose = me === turn.playerId || hasHostControl(room, me)
   const round = roundForTurn(room.turnIndex, room.playerOrder.length)
   const judgeId = judgeIdForTurn(room)
   const judge = room.players.find((item) => item.id === judgeId)
-  const usesTemporaryJudge = turn.playerId === room.hostId
-  const canReassign = usesTemporaryJudge && me === room.hostId && eligibleTemporaryJudges(room).length > 1
+  const usesTemporaryJudge = turn.playerId === activeHostId(room)
+  const canReassign = usesTemporaryJudge && hasHostControl(room, me) && eligibleTemporaryJudges(room).length > 1
   const team = teamForPlayer(room, player.id)
   return (
     <main className="spell-shell game-page">
-      <GameHeader room={room} />
+      <GameHeader room={room} act={act} />
       <section className="category-stage">
         <p className="eyebrow">Round {round} · {ROUND_LABELS[round - 1]}</p>
         <h1>{player.name}, pick your poison.</h1>
@@ -360,7 +390,7 @@ function FaceOffView({ room, act }: { room: SpellingRoom; act: (work: () => Prom
   const attempting = room.players.find((player) => player.id === faceOff.attemptPlayerId)
   const judge = room.players.find((player) => player.id === faceOff.judgeId)
   const isJudge = faceOff.judgeId === me
-  const isHost = room.hostId === me
+  const isHost = hasHostControl(room, me)
   const isRepresentative = faceOff.representativeIds.includes(me)
   const winnerTeam = room.teams.find((team) => team.id === faceOff.winnerTeamId)
   const mayChooseCategory = isHost || Boolean(winnerTeam && room.players.find((player) => player.id === me)?.teamId === winnerTeam.id)
@@ -368,7 +398,7 @@ function FaceOffView({ room, act }: { room: SpellingRoom; act: (work: () => Prom
 
   return (
     <main className="spell-shell game-page faceoff-page">
-      <GameHeader room={room} />
+      <GameHeader room={room} act={act} />
       <section className="faceoff-stage">
         <p className="eyebrow"><Zap size={15} /> {stageCopy} · {faceOff.category}</p>
         <h1>{faceOff.status === 'category' ? (winnerTeam ? `${winnerTeam.name} take control.` : 'No bonus this time.') : 'Step up to the buzzers.'}</h1>
@@ -381,11 +411,11 @@ function FaceOffView({ room, act }: { room: SpellingRoom; act: (work: () => Prom
           })}
         </div>
 
-        {faceOff.status === 'ready' && <div className="faceoff-control"><div className="readiness"><span>3</span><span>2</span><span>1</span></div><p>The judge plays the word, then opens both buzzers.</p>{isJudge ? <><div className="secret-answer"><small>Judge only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><div className="faceoff-actions"><button onClick={() => speak(word.word)}><Volume2 size={18} /> Play word</button><button className="primary-button" onClick={() => act(() => unlockFaceOff(room.roomCode, me))}>Unlock buzzers <Zap size={18} /></button></div></> : <p className="waiting-copy">{judge?.name} is preparing the word…</p>}</div>}
+        {faceOff.status === 'ready' && <div className="faceoff-control"><div className="readiness"><span>3</span><span>2</span><span>1</span></div><p>The judge plays the word, then opens both buzzers.</p>{isJudge ? <><div className="secret-answer"><small>Judge only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><div className="faceoff-actions faceoff-setup-actions"><button onClick={() => speak(word.word)}><small>Step 1</small><Volume2 size={18} /> Play face-off word</button><button className="unlock-buzzers" onClick={() => act(() => unlockFaceOff(room.roomCode, me))}><small>Step 2</small><Zap size={18} /> Open both buzzers</button></div><p className="control-help">Open the buzzers only after the word has finished playing.</p></> : <p className="waiting-copy">{judge?.name} is preparing the word…</p>}</div>}
 
-        {faceOff.status === 'open' && <div className="buzzer-stage"><p>The word has finished. Buzz when you are ready to spell.</p>{isRepresentative ? <button className="giant-buzzer" onClick={() => act(() => buzzFaceOff(room.roomCode, me))}><BellRing /> BUZZ</button> : <div className="buzzer-open"><Zap size={34} /><b>Buzzers are live</b><span>Waiting for a representative…</span></div>}{isHost && <div className="manual-buzzers"><small>Host manual override</small>{representatives.map((player) => player && <button key={player.id} onClick={() => act(() => buzzFaceOff(room.roomCode, me, player.id))}>{player.name}</button>)}</div>}</div>}
+        {faceOff.status === 'open' && <div className="buzzer-stage"><p>The word has finished. Buzz when you are ready to spell.</p>{isRepresentative ? <button className="giant-buzzer" onClick={() => act(() => buzzFaceOff(room.roomCode, me))}><BellRing /> BUZZ</button> : <div className="buzzer-open"><Zap size={34} /><b>Buzzers are live</b><span>Waiting for a representative…</span></div>}{(isJudge || isHost) && <div className="manual-buzzers"><small>Judge manual override · choose who buzzed first</small>{representatives.map((player) => player && <button key={player.id} onClick={() => act(() => buzzFaceOff(room.roomCode, me, player.id))}>{player.name}</button>)}</div>}</div>}
 
-        {(faceOff.status === 'attempt' || faceOff.status === 'steal') && <div className="faceoff-control"><p className="attempt-copy">{faceOff.status === 'steal' ? 'Steal attempt:' : 'First attempt:'} <b>{attempting?.name}</b> spells aloud.</p>{isJudge ? <><div className="secret-answer"><small>Judge only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><div className="faceoff-actions"><button className="correct" onClick={() => act(() => judgeFaceOff(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeFaceOff(room.roomCode, me, false))}><X /> Not quite</button></div></> : <p className="waiting-copy">{judge?.name} has the answer and will rule.</p>}{isHost && <button className="reset-buzz" onClick={() => act(() => resetFaceOffBuzz(room.roomCode, me))}><RotateCcw size={16} /> Reset false start</button>}</div>}
+        {(faceOff.status === 'attempt' || faceOff.status === 'steal') && <div className="faceoff-control"><p className="attempt-copy">{faceOff.status === 'steal' ? 'Steal attempt:' : 'First attempt:'} <b>{attempting?.name}</b> spells aloud.</p>{isJudge ? <><div className="secret-answer"><small>Judge only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><div className="faceoff-actions"><button className="correct" onClick={() => act(() => judgeFaceOff(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeFaceOff(room.roomCode, me, false))}><X /> Not quite</button></div></> : <p className="waiting-copy">{judge?.name} has the answer and will rule.</p>}{(isJudge || isHost) && <button className="reset-buzz" onClick={() => act(() => resetFaceOffBuzz(room.roomCode, me))}><RotateCcw size={16} /> Reset false start</button>}</div>}
 
         {faceOff.status === 'category' && <div className="faceoff-category"><p className="answer-reveal">The word was <b>{word.word}</b>.</p><h2>{winnerTeam ? `${winnerTeam.name}, choose the opening category.` : 'Host, choose the opening category.'}</h2><p>The first two rally spellers will receive this category.</p><div className="faceoff-category-grid">{faceOff.categoryOptions.map((category) => <button key={category} disabled={!mayChooseCategory} onClick={() => act(() => chooseFaceOffRallyCategory(room.roomCode, me, category))}><b>{category}</b><small>{categoryNotes[category]}</small></button>)}</div></div>}
       </section>
@@ -393,37 +423,53 @@ function FaceOffView({ room, act }: { room: SpellingRoom; act: (work: () => Prom
   )
 }
 
-function GameHeader({ room }: { room: SpellingRoom }) {
-  const round = room.faceOff?.round ?? roundForTurn(room.turnIndex, room.playerOrder.length)
-  return <header className="game-header"><span className="bee-mark">B</span><span>Round {round} / 3</span><b>{ROUND_LABELS[round - 1]}</b>{gameMode(room) === 'team' && <div className="header-scores">{room.teams.map((team) => <span key={team.id} style={{ borderColor: team.color }}>{team.name} <strong>{team.score}</strong></span>)}</div>}<span>Room {room.roomCode}</span></header>
+function elapsedWords(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  if (minutes === 0) return `${remainder} ${remainder === 1 ? 'second' : 'seconds'} so far`
+  if (remainder === 0) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} so far`
+  return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}, ${remainder} ${remainder === 1 ? 'second' : 'seconds'} so far`
 }
 
-function HintPanel({ title, body, open }: { title: string; body: string; open: boolean }) {
-  return <div className={open ? 'hint-panel open' : 'hint-panel'}><b>{title}</b><p>{open ? body : 'Not requested yet'}</p></div>
+function CountUpAfterCountdown({ startedAt, countdownSeconds }: { startedAt: number; countdownSeconds: number }) {
+  const [now, setNow] = useState(startedAt)
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250)
+    return () => window.clearInterval(timer)
+  }, [])
+  const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000))
+  if (elapsed >= countdownSeconds) return <strong>{elapsedWords(elapsed)}</strong>
+  const remaining = countdownSeconds - elapsed
+  return <strong>{`${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')} left`}</strong>
+}
+
+function GameHeader({ room, act }: { room: SpellingRoom; act?: (work: () => Promise<void>) => void }) {
+  const round = room.faceOff?.round ?? roundForTurn(room.turnIndex, room.playerOrder.length)
+  const spellingStartedAt = room.faceOff?.attemptStartedAt ?? room.currentTurn?.spellingStartedAt
+  return <><header className="game-header"><span className="bee-mark">B</span><span>Round {round} / 3</span><b>{ROUND_LABELS[round - 1]}</b>{spellingStartedAt && <div className="spelling-clock"><Clock3 size={16} /><CountUpAfterCountdown startedAt={spellingStartedAt} countdownSeconds={60} /></div>}{gameMode(room) === 'team' && <div className="header-scores">{room.teams.map((team) => <span key={team.id} style={{ borderColor: team.color }}>{team.name} <strong>{team.score}</strong></span>)}</div>}<span>Room {room.roomCode}</span></header>{act && <TemporaryHostControl room={room} act={act} />}</>
+}
+
+function HintPanel({ title, body, open, privateOpen = false }: { title: string; body: string; open: boolean; privateOpen?: boolean }) {
+  return <div className={open ? `hint-panel open${privateOpen ? ' private' : ''}` : 'hint-panel'}><b>{title}</b>{privateOpen && <small>Private to this screen</small>}<p>{open ? body : 'Not requested yet'}</p></div>
 }
 
 function HuddleClock({ endsAt }: { endsAt: number }) {
-  const [seconds, setSeconds] = useState(12)
-  useEffect(() => {
-    const update = () => setSeconds(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)))
-    update()
-    const timer = window.setInterval(update, 250)
-    return () => window.clearInterval(timer)
-  }, [endsAt])
-  return <strong>{seconds}</strong>
+  return <CountUpAfterCountdown startedAt={endsAt - 30_000} countdownSeconds={30} />
 }
 
 function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise<void>) => void }) {
   const me = getSpellingPlayerId()
   const turn = room.currentTurn!
+  const [privateReview, setPrivateReview] = useState<{ turnId: string; hints: Hint[] }>({ turnId: turn.turnId, hints: [] })
+  const privateHints = privateReview.turnId === turn.turnId ? privateReview.hints : []
   const word = getWord(turn.wordId)!
   const player = room.players.find((item) => item.id === turn.playerId)!
-  const isHost = room.hostId === me
+  const isHost = hasHostControl(room, me)
   const isSpeller = turn.playerId === me
   const judgeId = judgeIdForTurn(room)
   const judge = room.players.find((item) => item.id === judgeId)
   const isJudge = judgeId === me
-  const usesTemporaryJudge = judgeId !== room.hostId
+  const usesTemporaryJudge = judgeId !== activeHostId(room)
   const round = roundForTurn(room.turnIndex, room.playerOrder.length)
   const result = turn.ruling
   const isTeam = gameMode(room) === 'team'
@@ -431,14 +477,28 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
   const myTeam = room.players.find((item) => item.id === me)?.teamId
   const savesLeft = activeTeam ? remainingSaveTokens(activeTeam, round) : 0
   const saveAvailable = Boolean(isTeam && result === 'incorrect' && !turn.saveActive && !turn.saveDeclined && savesLeft > 0)
-  const canCallSave = Boolean(activeTeam && (isHost || myTeam === activeTeam.id))
+  const canCallSave = Boolean(activeTeam && myTeam === activeTeam.id)
+  const isActiveTeamMember = Boolean(activeTeam && myTeam === activeTeam.id)
   const answerRevealed = Boolean(result && !saveAvailable)
   const maySeeSecret = isJudge || answerRevealed
-  const request = (hint: Hint) => act(() => requestHint(room.roomCode, me, hint))
+  const request = (hint: Hint) => {
+    if (isSpeller || isHost) {
+      act(() => requestHint(room.roomCode, me, hint))
+      return
+    }
+    setPrivateReview((review) => {
+      const hints = review.turnId === turn.turnId ? review.hints : []
+      return { turnId: turn.turnId, hints: hints.includes(hint) ? hints : [...hints, hint] }
+    })
+  }
+  const requestSentence = () => {
+    request('sentence')
+    if (isSpeller || isHost) speak(word.sentence.replace('___', word.word))
+  }
 
   return (
     <main className="spell-shell game-page">
-      <GameHeader room={room} />
+      <GameHeader room={room} act={act} />
       <section className={isSpeller ? 'turn-grid speller-safe' : 'turn-grid'}>
         <div className="turn-main">
           <p className="eyebrow">Turn {room.turnIndex + 1} · {turn.category}</p>
@@ -448,13 +508,14 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
           ) : (
             <div className="secret-card companion-card"><Headphones size={34} /><h2>{isSpeller ? 'No peeking. You’ve got this.' : 'Follow along.'}</h2><p>The spelling stays hidden, but every public clue appears here and on the presentation screen.</p>{(isSpeller || isHost) && <button className="hear-button" onClick={() => speak(word.word)}><Volume2 size={20} /> Hear the word</button>}</div>
           )}
-          {turn.saveActive && !result && <div className="huddle-banner"><ShieldCheck size={30} /><div><small>Save the Bee · {activeTeam?.name}</small><b>Huddle, then let {player.name} deliver the final spelling.</b></div><HuddleClock endsAt={turn.saveEndsAt ?? 0} /></div>}
+          {turn.saveActive && !result && isActiveTeamMember && <div className="huddle-banner"><ShieldCheck size={30} /><div><small>Save the Bee · private team huddle</small><b>Confer, then let {player.name} deliver the final spelling.</b></div><HuddleClock endsAt={turn.saveEndsAt ?? 0} /></div>}
+          {turn.saveActive && !result && !isActiveTeamMember && <div className="team-conferring"><ShieldCheck size={20} /><span>{activeTeam?.name} are conferring privately.</span></div>}
           <div className="hint-grid">
-            <HintPanel title="Definition" body={word.definition} open={turn.requestedHints.includes('definition')} />
-            <HintPanel title="Origin story" body={word.origin} open={turn.requestedHints.includes('origin')} />
-            <HintPanel title="In a sentence" body={word.sentence} open={turn.requestedHints.includes('sentence')} />
+            <HintPanel title="Definition" body={word.definition} open={turn.requestedHints.includes('definition') || privateHints.includes('definition')} privateOpen={!turn.requestedHints.includes('definition') && privateHints.includes('definition')} />
+            <HintPanel title="Origin story" body={word.origin} open={turn.requestedHints.includes('origin') || privateHints.includes('origin')} privateOpen={!turn.requestedHints.includes('origin') && privateHints.includes('origin')} />
+            <HintPanel title="In a sentence" body={word.sentence} open={turn.requestedHints.includes('sentence') || privateHints.includes('sentence')} privateOpen={!turn.requestedHints.includes('sentence') && privateHints.includes('sentence')} />
           </div>
-          {(isSpeller || isHost || isJudge) && !result && <div className="hint-actions"><button onClick={() => request('definition')}>Definition</button><button onClick={() => request('origin')}>Origin</button><button onClick={() => { request('sentence'); speak(word.sentence.replace('___', word.word)) }}>Use it in a sentence</button></div>}
+          {!result && <div className="hint-actions"><small>{isSpeller || isHost ? 'Reveal to every screen' : 'Review privately on this screen'}</small><button onClick={() => request('definition')}>Definition</button><button onClick={() => request('origin')}>Origin</button><button onClick={requestSentence}>Use it in a sentence</button></div>}
         </div>
         <aside className="game-sidebar">
           <div className="points-card"><span>Worth</span><strong>{round}</strong><small>{round === 1 ? 'point' : 'points'}</small></div>
@@ -464,7 +525,8 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
           {isJudge && !result && <div className="judge-card"><p>{turn.saveActive ? 'Judge the team save' : usesTemporaryJudge ? 'Your ruling' : 'Host ruling'}</p><button className="correct" onClick={() => act(() => judgeTurn(room.roomCode, me, true))}><Check /> {turn.saveActive ? 'Save successful' : 'Correct'}</button><button className="incorrect" onClick={() => act(() => judgeTurn(room.roomCode, me, false))}><X /> Not quite</button>{!turn.saveActive && <button className="skip" onClick={() => act(() => skipWord(room.roomCode, me))}>Skip this word</button>}</div>}
         </aside>
       </section>
-      {result && <div className={`result-overlay ${result}`}><div>{saveAvailable ? <ShieldCheck className="save-overlay-icon" /> : <span>{result === 'correct' || result === 'saved' ? '✓' : '×'}</span>}{saveAvailable ? <><p className="save-title">Save the Bee?</p><h2>{activeTeam?.name} has {savesLeft} {savesLeft === 1 ? 'token' : 'tokens'} left. The answer is still hidden.</h2><div className="result-actions">{canCallSave && <button className="save-button" onClick={() => act(() => activateSaveTheBee(room.roomCode, me))}><ShieldCheck size={18} /> Start 12-second huddle</button>}{isHost && <button className="undo-button" onClick={() => act(() => declineSaveTheBee(room.roomCode, me))}>Reveal answer</button>}</div>{!canCallSave && !isHost && <small>Waiting for the active team or host…</small>}</> : <><p>{word.word}</p><h2>{result === 'saved' ? `Saved! Full value: ${round} on the board.` : result === 'correct' ? `That’s ${round} on the board!` : 'Not quite — next word, same energy.'}</h2>{(isJudge || isHost) ? <div className="result-actions">{isJudge && <button className="undo-button" onClick={() => act(() => undoRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo</button>}{isHost && <button className="primary-button" onClick={() => act(() => advanceTurn(room.roomCode, me))}>Next turn →</button>}</div> : <small>Waiting for the host…</small>}</>}</div></div>}
+      {result && (!saveAvailable || canCallSave || isHost) && <div className={`result-overlay ${result}`}><div>{saveAvailable ? <ShieldCheck className="save-overlay-icon" /> : <span>{result === 'correct' || result === 'saved' ? '✓' : '×'}</span>}{saveAvailable ? <><p className="save-title">{canCallSave ? 'Save the Bee?' : 'Team decision in progress'}</p><h2>{canCallSave ? `${activeTeam?.name} has ${savesLeft} ${savesLeft === 1 ? 'token' : 'tokens'} left. The answer is still hidden.` : `${activeTeam?.name} can choose whether to use a save. The answer remains hidden.`}</h2><div className="result-actions">{canCallSave && <button className="save-button" onClick={() => act(() => activateSaveTheBee(room.roomCode, me))}><ShieldCheck size={18} /> Start private team huddle</button>}{isHost && <button className="undo-button" onClick={() => act(() => declineSaveTheBee(room.roomCode, me))}>Close save window & reveal</button>}</div></> : <><p>{word.word}</p><h2>{result === 'saved' ? `Saved! Full value: ${round} on the board.` : result === 'correct' ? `That’s ${round} on the board!` : 'Not quite — next word, same energy.'}</h2>{(isJudge || isHost) ? <div className="result-actions">{isJudge && <button className="undo-button" onClick={() => act(() => undoRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo</button>}{isHost && <button className="primary-button" onClick={() => act(() => advanceTurn(room.roomCode, me))}>Next turn →</button>}</div> : <small>Waiting for the host…</small>}</>}</div></div>}
+      {saveAvailable && !canCallSave && !isHost && <div className="save-decision-status"><ShieldCheck size={18} /><span>{activeTeam?.name} are deciding whether to call Save the Bee.</span></div>}
     </main>
   )
 }
@@ -518,7 +580,11 @@ function PresentationView({ room }: { room: SpellingRoom }) {
   const activeTeam = teamForPlayer(room, turn.playerId)
   const saveAvailable = Boolean(turn.ruling === 'incorrect' && !turn.saveActive && !turn.saveDeclined && activeTeam && remainingSaveTokens(activeTeam, round) > 0)
   const revealAnswer = Boolean(turn.ruling && !saveAvailable)
-  return <main className="spell-shell presentation-page presentation-live"><GameHeader room={room} /><p className="eyebrow">Rally · {turn.category}</p><h1>{turn.saveActive ? `${activeTeam?.name}, huddle now.` : `${player?.name} is spelling…`}</h1>{turn.saveActive && <div className="presentation-clock"><ShieldCheck /><b>Save the Bee</b><HuddleClock endsAt={turn.saveEndsAt ?? 0} /></div>}{revealAnswer ? <p className="presentation-word">{word.word}</p> : <div className="presentation-secret"><Headphones /><b>The spelling stays hidden.</b></div>}<div className="hint-grid"><HintPanel title="Definition" body={word.definition} open={turn.requestedHints.includes('definition')} /><HintPanel title="Origin story" body={word.origin} open={turn.requestedHints.includes('origin')} /><HintPanel title="In a sentence" body={word.sentence} open={turn.requestedHints.includes('sentence')} /></div><Scoreboard room={room} /></main>
+  if (revealAnswer) {
+    const success = turn.ruling === 'correct' || turn.ruling === 'saved'
+    return <main className={`spell-shell presentation-page presentation-result ${success ? 'correct' : 'incorrect'}`}><GameHeader room={room} /><div className="presentation-celebration"><span>{success ? '✓' : '×'}</span><p>{word.word}</p><h1>{turn.ruling === 'saved' ? `${activeTeam?.name} saved it!` : success ? `${player?.name} got it!` : 'Good fight. Keep moving.'}</h1><h2>{success ? `${round} ${round === 1 ? 'point' : 'points'} on the board.` : 'The word is now revealed.'}</h2></div><Scoreboard room={room} /></main>
+  }
+  return <main className="spell-shell presentation-page presentation-live"><GameHeader room={room} /><p className="eyebrow">Rally · {turn.category}</p><h1>{turn.saveActive ? `${activeTeam?.name} are conferring.` : saveAvailable ? `${activeTeam?.name} are making a team decision.` : `${player?.name} is spelling…`}</h1>{turn.saveActive && <div className="presentation-clock"><ShieldCheck /><b>Private team huddle in progress</b></div>}<div className="presentation-secret"><Headphones /><b>The spelling stays hidden.</b></div><div className="hint-grid"><HintPanel title="Definition" body={word.definition} open={turn.requestedHints.includes('definition')} /><HintPanel title="Origin story" body={word.origin} open={turn.requestedHints.includes('origin')} /><HintPanel title="In a sentence" body={word.sentence} open={turn.requestedHints.includes('sentence')} /></div><Scoreboard room={room} /></main>
 }
 
 function PresentationRoom({ code }: { code: string }) {
@@ -544,7 +610,7 @@ function FinalScreen({ room, act }: { room: SpellingRoom; act: (work: () => Prom
   const winnerCopy = isTeam
     ? `${teamWinners.map((team) => team.name).join(' & ')} ${teamWinners.length > 1 ? 'finish tied at the top' : 'take the night'} with ${teamTopScore} points.`
     : `${winners.map((player) => player.name).join(' & ')} ${winners.length > 1 ? 'finish tied at the top' : 'takes the night'} with ${topScore} points.`
-  return <main className="spell-shell final-page"><span className="bee-mark">B</span><p className="eyebrow"><Sparkles size={15} /> That’s the bee</p><h1>{headline}</h1><p className="winner-copy">{winnerCopy}</p><div className="final-card"><Scoreboard room={room} /></div><GameAwards room={room} />{room.hostId === me && <div className="continuation-menu"><p className="eyebrow">What’s next?</p><div className="continuation-grid"><button className="continuation-primary" onClick={() => act(() => replayRoom(room.roomCode, me, 'same'))}><Trophy /><b>Run it back</b><span>Same format{isTeam ? ' and teams' : ''}</span></button>{isTeam && <button onClick={() => act(() => replayRoom(room.roomCode, me, 'shuffle'))}><Shuffle /><b>Shuffle teams</b><span>Same format, fresh sides</span></button>}<button onClick={() => act(() => replayRoom(room.roomCode, me, 'setup'))}><Settings2 /><b>Change setup</b><span>Choose the format and teams</span></button></div></div>}</main>
+  return <main className="spell-shell final-page"><span className="bee-mark">B</span><TemporaryHostControl room={room} act={act} /><p className="eyebrow"><Sparkles size={15} /> That’s the bee</p><h1>{headline}</h1><p className="winner-copy">{winnerCopy}</p><div className="final-card"><Scoreboard room={room} /></div><GameAwards room={room} />{hasHostControl(room, me) && <div className="continuation-menu"><p className="eyebrow">What’s next?</p><div className="continuation-grid"><button className="continuation-primary" onClick={() => act(() => replayRoom(room.roomCode, me, 'same'))}><Trophy /><b>Run it back</b><span>Same format{isTeam ? ' and teams' : ''}</span></button>{isTeam && <button onClick={() => act(() => replayRoom(room.roomCode, me, 'shuffle'))}><Shuffle /><b>Shuffle teams</b><span>Same format, fresh sides</span></button>}<button onClick={() => act(() => replayRoom(room.roomCode, me, 'setup'))}><Settings2 /><b>Change setup</b><span>Choose the format and teams</span></button></div></div>}</main>
 }
 
 function Room({ code, onLeave }: { code: string; onLeave: () => void }) {

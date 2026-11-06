@@ -12,7 +12,7 @@ service cloud.firestore {
     function validSpellingRoom(roomCode) {
       let data = request.resource.data;
       return data.keys().hasOnly([
-          'roomCode', 'title', 'hostId', 'status', 'players', 'playerOrder',
+          'roomCode', 'title', 'hostId', 'temporaryHostId', 'status', 'players', 'playerOrder',
           'turnIndex', 'currentTurn', 'history', 'usedWordIds', 'revision',
           'createdAt', 'updatedAt', 'mode', 'teams', 'faceOff',
           'faceOffHistory', 'faceOffRotationOffset', 'openingCategory'
@@ -22,6 +22,8 @@ service cloud.firestore {
         && data.title == 'Spelling bee game night'
         && data.hostId is string
         && data.hostId.size() <= 80
+        && (!('temporaryHostId' in data)
+          || (data.temporaryHostId is string && data.temporaryHostId.size() <= 80))
         && (data.mode == 'classic' || data.mode == 'team')
         && data.teams is list
         && data.teams.size() == 2

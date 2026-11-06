@@ -63,6 +63,7 @@ export interface CurrentTurn {
   judgeId?: string
   category: Category | null
   wordId: string | null
+  spellingStartedAt?: number
   requestedHints: Hint[]
   ruling: 'correct' | 'incorrect' | 'saved' | null
   saveActive?: boolean
@@ -82,6 +83,7 @@ export interface FaceOff {
   wordId: string
   buzzedPlayerId?: string
   attemptPlayerId?: string
+  attemptStartedAt?: number
   winnerPlayerId?: string
   winnerTeamId?: TeamId
 }
@@ -101,6 +103,7 @@ export interface SpellingRoom {
   roomCode: string
   title: string
   hostId: string
+  temporaryHostId?: string
   mode: GameMode
   teams: Team[]
   status: 'lobby' | 'playing' | 'finished' | 'closed'

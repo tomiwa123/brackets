@@ -20,6 +20,17 @@ export function gameMode(room: Pick<SpellingRoom, 'mode'>): GameMode {
   return room.mode ?? 'classic'
 }
 
+export function activeHostId(room: Pick<SpellingRoom, 'hostId' | 'temporaryHostId'>): string {
+  return room.temporaryHostId ?? room.hostId
+}
+
+export function hasHostControl(
+  room: Pick<SpellingRoom, 'hostId' | 'temporaryHostId'>,
+  actorId: string,
+): boolean {
+  return activeHostId(room) === actorId
+}
+
 export function saveTokensForRound(round: number): number {
   return pointsForRound(round)
 }
@@ -35,11 +46,11 @@ export function teamForPlayer(room: Pick<SpellingRoom, 'players' | 'teams'>, pla
 }
 
 export function canRenameTeam(
-  room: Pick<SpellingRoom, 'hostId' | 'players'>,
+  room: Pick<SpellingRoom, 'hostId' | 'temporaryHostId' | 'players'>,
   actorId: string,
   teamId: TeamId,
 ): boolean {
-  return room.hostId === actorId
+  return hasHostControl(room, actorId)
     || room.players.some((player) => player.id === actorId && player.teamId === teamId)
 }
 
@@ -99,17 +110,24 @@ export function pointsForRound(round: number): number {
   return Math.min(TOTAL_ROUNDS, Math.max(1, round))
 }
 
-export function eligibleTemporaryJudges(room: Pick<SpellingRoom, 'hostId' | 'players' | 'playerOrder'>): Player[] {
+export function eligibleTemporaryJudges(room: Pick<SpellingRoom, 'hostId' | 'temporaryHostId' | 'players' | 'playerOrder'>): Player[] {
+  const activeHost = activeHostId(room)
   return room.playerOrder
     .map((id) => room.players.find((player) => player.id === id))
-    .filter((player): player is Player => Boolean(player && player.id !== room.hostId && !player.isGuest))
+    .filter((player): player is Player => Boolean(
+      player
+      && player.id !== activeHost
+      && (!room.temporaryHostId || player.id !== room.hostId)
+      && !player.isGuest,
+    ))
 }
 
 export function judgeIdForPlayer(
-  room: Pick<SpellingRoom, 'hostId' | 'players' | 'playerOrder'>,
+  room: Pick<SpellingRoom, 'hostId' | 'temporaryHostId' | 'players' | 'playerOrder'>,
   playerId: string,
 ): string | null {
-  if (playerId !== room.hostId) return room.hostId
+  const activeHost = activeHostId(room)
+  if (playerId !== activeHost) return activeHost
   return eligibleTemporaryJudges(room)[0]?.id ?? null
 }
 

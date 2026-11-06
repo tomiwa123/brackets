@@ -1,6 +1,7 @@
 import { doc, getDoc, onSnapshot, runTransaction, setDoc } from 'firebase/firestore'
 import { db, hasFirebaseConfig } from '../services/firebase'
 import {
+  activeHostId,
   alternatingTeamOrder,
   assignBalancedTeams,
   canRenameTeam,
@@ -9,6 +10,7 @@ import {
   eligibleTemporaryJudges,
   faceOffRepresentativeIds,
   gameMode,
+  hasHostControl,
   judgeIdForPlayer,
   judgeIdForTurn,
   makeTurn,
@@ -131,10 +133,14 @@ function normalizeRoom(room: SpellingRoom): SpellingRoom {
 const FACE_OFF_CATEGORIES = CATEGORIES.filter((category) => category !== "Dealer's Choice")
 
 function faceOffJudgeId(room: SpellingRoom, representativeIds: string[]): string {
-  if (!representativeIds.includes(room.hostId)) return room.hostId
+  const activeHost = activeHostId(room)
+  if (!representativeIds.includes(activeHost)) return activeHost
   return room.players.find((player) =>
-    player.id !== room.hostId && !player.isGuest && !representativeIds.includes(player.id),
-  )?.id ?? eligibleTemporaryJudges(room)[0]?.id ?? room.hostId
+    player.id !== activeHost
+    && (!room.temporaryHostId || player.id !== room.hostId)
+    && !player.isGuest
+    && !representativeIds.includes(player.id),
+  )?.id ?? eligibleTemporaryJudges(room)[0]?.id ?? activeHost
 }
 
 function createFaceOff(room: SpellingRoom, round: number, kind: FaceOffKind): Pick<SpellingRoom, 'faceOff' | 'usedWordIds'> {
@@ -172,7 +178,7 @@ function startRally(room: SpellingRoom, category: Category, startingTeamId: Team
     playerOrder,
     faceOff: null,
     openingCategory: category,
-    currentTurn: { ...turn, category, wordId: word.id },
+    currentTurn: { ...turn, category, wordId: word.id, spellingStartedAt: Date.now() },
     usedWordIds: [...room.usedWordIds, word.id],
   }
 }
@@ -269,7 +275,7 @@ export async function joinSpellingRoom(code: string, name: string): Promise<void
 
 export async function closeSpellingRoom(code: string, actorId: string): Promise<void> {
   await mutate(code, (room) => {
-    requireHost(room, actorId)
+    if (room.hostId !== actorId) throw new Error('OWNER_ONLY')
     return { ...room, status: 'closed' }
   })
 }
@@ -287,7 +293,53 @@ export function listenToSpellingRoom(
 }
 
 function requireHost(room: SpellingRoom, actorId: string): void {
-  if (room.hostId !== actorId) throw new Error('HOST_ONLY')
+  if (!hasHostControl(room, actorId)) throw new Error('HOST_ONLY')
+}
+
+export async function assignTemporaryHost(code: string, actorId: string, playerId: string | null): Promise<void> {
+  await mutate(code, (room) => {
+    if (room.hostId !== actorId) throw new Error('OWNER_ONLY')
+    if (playerId === null) {
+      if (!room.temporaryHostId) return room
+      const restored = { ...room }
+      delete restored.temporaryHostId
+      if (restored.currentTurn) {
+        const judgeId = restored.currentTurn.playerId === room.hostId
+          ? eligibleTemporaryJudges(restored)[0]?.id ?? restored.currentTurn.judgeId ?? room.hostId
+          : room.hostId
+        restored.currentTurn = {
+          ...restored.currentTurn,
+          judgeId,
+        }
+      }
+      if (restored.faceOff) {
+        restored.faceOff = {
+          ...restored.faceOff,
+          judgeId: faceOffJudgeId(restored, restored.faceOff.representativeIds),
+        }
+      }
+      return restored
+    }
+    const delegate = room.players.find((player) => player.id === playerId)
+    if (!delegate || delegate.id === room.hostId || delegate.isGuest) throw new Error('INVALID_TEMP_HOST')
+    const delegated = { ...room, temporaryHostId: delegate.id }
+    if (delegated.currentTurn) {
+      const judgeId = delegated.currentTurn.playerId === delegate.id
+        ? eligibleTemporaryJudges(delegated)[0]?.id ?? delegated.currentTurn.judgeId ?? room.hostId
+        : delegate.id
+      delegated.currentTurn = {
+        ...delegated.currentTurn,
+        judgeId,
+      }
+    }
+    if (delegated.faceOff) {
+      delegated.faceOff = {
+        ...delegated.faceOff,
+        judgeId: faceOffJudgeId(delegated, delegated.faceOff.representativeIds),
+      }
+    }
+    return delegated
+  })
 }
 
 export async function addGuest(code: string, actorId: string, name: string): Promise<void> {
@@ -405,7 +457,7 @@ export async function unlockFaceOff(code: string, actorId: string): Promise<void
   await mutate(code, (room) => {
     const faceOff = room.faceOff
     if (!faceOff || faceOff.status !== 'ready') return room
-    if (actorId !== room.hostId && actorId !== faceOff.judgeId) throw new Error('JUDGE_ONLY')
+    if (!hasHostControl(room, actorId) && actorId !== faceOff.judgeId) throw new Error('JUDGE_ONLY')
     return { ...room, faceOff: { ...faceOff, status: 'open' } }
   })
 }
@@ -415,25 +467,32 @@ export async function buzzFaceOff(code: string, actorId: string, overridePlayerI
     const faceOff = room.faceOff
     if (!faceOff || faceOff.status !== 'open') return room
     const playerId = overridePlayerId ?? actorId
-    if (overridePlayerId && actorId !== room.hostId) throw new Error('HOST_ONLY')
+    if (overridePlayerId && actorId !== faceOff.judgeId && !hasHostControl(room, actorId)) throw new Error('JUDGE_ONLY')
     if (!faceOff.representativeIds.includes(playerId) || (!overridePlayerId && actorId !== playerId)) {
       throw new Error('BUZZER_ONLY')
     }
     return {
       ...room,
-      faceOff: { ...faceOff, status: 'attempt', buzzedPlayerId: playerId, attemptPlayerId: playerId },
+      faceOff: {
+        ...faceOff,
+        status: 'attempt',
+        buzzedPlayerId: playerId,
+        attemptPlayerId: playerId,
+        attemptStartedAt: Date.now(),
+      },
     }
   })
 }
 
 export async function resetFaceOffBuzz(code: string, actorId: string): Promise<void> {
   await mutate(code, (room) => {
-    requireHost(room, actorId)
     const faceOff = room.faceOff
+    if (faceOff && actorId !== faceOff.judgeId && !hasHostControl(room, actorId)) throw new Error('JUDGE_ONLY')
     if (!faceOff || (faceOff.status !== 'attempt' && faceOff.status !== 'steal')) return room
     const resetFaceOff = { ...faceOff }
     delete resetFaceOff.buzzedPlayerId
     delete resetFaceOff.attemptPlayerId
+    delete resetFaceOff.attemptStartedAt
     return {
       ...room,
       faceOff: { ...resetFaceOff, status: 'open' },
@@ -479,7 +538,10 @@ export async function judgeFaceOff(code: string, actorId: string, correct: boole
     }
     if (faceOff.status === 'attempt') {
       const stealPlayerId = faceOff.representativeIds.find((playerId) => playerId !== faceOff.attemptPlayerId)
-      return { ...room, faceOff: { ...faceOff, status: 'steal', attemptPlayerId: stealPlayerId } }
+      return {
+        ...room,
+        faceOff: { ...faceOff, status: 'steal', attemptPlayerId: stealPlayerId, attemptStartedAt: Date.now() },
+      }
     }
     const record = {
       id: faceOff.id,
@@ -504,8 +566,8 @@ export async function chooseFaceOffRallyCategory(code: string, actorId: string, 
     if (!faceOff.categoryOptions.includes(category)) return room
     const actor = room.players.find((player) => player.id === actorId)
     if (faceOff.winnerTeamId) {
-      if (actorId !== room.hostId && actor?.teamId !== faceOff.winnerTeamId) throw new Error('TEAM_ONLY')
-    } else if (actorId !== room.hostId) {
+      if (!hasHostControl(room, actorId) && actor?.teamId !== faceOff.winnerTeamId) throw new Error('TEAM_ONLY')
+    } else if (!hasHostControl(room, actorId)) {
       throw new Error('HOST_ONLY')
     }
     const startingTeamId = faceOff.winnerTeamId ?? room.playerOrder
@@ -519,7 +581,7 @@ export async function reassignJudge(code: string, actorId: string): Promise<void
   await mutate(code, (room) => {
     requireHost(room, actorId)
     const turn = room.currentTurn
-    if (!turn || turn.playerId !== room.hostId || turn.wordId) return room
+    if (!turn || turn.playerId !== activeHostId(room) || turn.wordId) return room
     const candidates = eligibleTemporaryJudges(room)
     if (candidates.length < 2) return room
     const currentJudgeId = judgeIdForTurn(room)
@@ -533,12 +595,12 @@ export async function chooseCategory(code: string, actorId: string, category: Ca
   await mutate(code, (room) => {
     const turn = room.currentTurn
     if (!turn || room.status !== 'playing' || turn.wordId) return room
-    if (actorId !== room.hostId && actorId !== turn.playerId) throw new Error('NOT_YOUR_TURN')
+    if (!hasHostControl(room, actorId) && actorId !== turn.playerId) throw new Error('NOT_YOUR_TURN')
     const difficulty = roundForTurn(room.turnIndex, room.playerOrder.length)
     const word = drawWord(WORD_BANK, category, difficulty === 1 ? 'warmup' : difficulty === 2 ? 'tricky' : 'menace', room.usedWordIds, { mode: gameMode(room) })
     return {
       ...room,
-      currentTurn: { ...turn, category, wordId: word.id },
+      currentTurn: { ...turn, category, wordId: word.id, spellingStartedAt: Date.now() },
       usedWordIds: [...room.usedWordIds, word.id],
     }
   })
@@ -547,7 +609,7 @@ export async function chooseCategory(code: string, actorId: string, category: Ca
 export async function requestHint(code: string, actorId: string, hint: Hint): Promise<void> {
   await mutate(code, (room) => {
     const turn = room.currentTurn
-    if (!turn || !turn.wordId || (actorId !== room.hostId && actorId !== turn.playerId && actorId !== judgeIdForTurn(room))) return room
+    if (!turn || !turn.wordId || (!hasHostControl(room, actorId) && actorId !== turn.playerId)) return room
     return turn.requestedHints.includes(hint)
       ? room
       : { ...room, currentTurn: { ...turn, requestedHints: [...turn.requestedHints, hint] } }
@@ -596,12 +658,12 @@ export async function activateSaveTheBee(code: string, actorId: string): Promise
     const team = teamForPlayer(room, turn.playerId)
     if (!team) return room
     const actor = room.players.find((player) => player.id === actorId)
-    if (actorId !== room.hostId && actor?.teamId !== team.id) throw new Error('TEAM_ONLY')
+    if (actor?.teamId !== team.id) throw new Error('TEAM_ONLY')
     const round = roundForTurn(room.turnIndex, room.playerOrder.length)
     if (remainingSaveTokens(team, round) < 1) throw new Error('NO_SAVE_TOKENS')
     return {
       ...room,
-      currentTurn: { ...turn, ruling: null, saveActive: true, saveEndsAt: Date.now() + 12_000 },
+      currentTurn: { ...turn, ruling: null, saveActive: true, saveEndsAt: Date.now() + 30_000 },
       players: room.players.map((player) => player.id === turn.playerId
         ? { ...player, turns: Math.max(0, player.turns - 1) }
         : player),
@@ -655,7 +717,7 @@ export async function skipWord(code: string, actorId: string): Promise<void> {
     const word = drawWord(WORD_BANK, turn.category, difficulty, room.usedWordIds, { mode: gameMode(room) })
     return {
       ...room,
-      currentTurn: { ...turn, wordId: word.id, requestedHints: [] },
+      currentTurn: { ...turn, wordId: word.id, spellingStartedAt: Date.now(), requestedHints: [] },
       usedWordIds: [...room.usedWordIds, word.id],
     }
   })
@@ -691,7 +753,12 @@ export async function advanceTurn(code: string, actorId: string): Promise<void> 
       return {
         ...room,
         turnIndex: nextIndex,
-        currentTurn: { ...turn, category: room.openingCategory, wordId: word.id },
+        currentTurn: {
+          ...turn,
+          category: room.openingCategory,
+          wordId: word.id,
+          spellingStartedAt: Date.now(),
+        },
         usedWordIds: [...room.usedWordIds, word.id],
       }
     }

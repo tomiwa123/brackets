@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  activeHostId,
   alternatingTeamOrder,
   assignBalancedTeams,
   canRenameTeam,
@@ -8,6 +9,7 @@ import {
   drawWord,
   eligibleTemporaryJudges,
   faceOffRepresentativeIds,
+  hasHostControl,
   judgeIdForPlayer,
   nextTurn,
   pointsForRound,
@@ -109,6 +111,26 @@ describe('spelling game engine', () => {
 
     expect(nextTurn(room).currentTurn?.playerId).toBe('host')
     expect(nextTurn(room).currentTurn?.judgeId).toBe('player')
+  })
+
+  it('transfers host authority and judging to a temporary host', () => {
+    const room = {
+      hostId: 'owner',
+      temporaryHostId: 'delegate',
+      players: [
+        { id: 'owner', name: 'Owner', score: 0, turns: 0 },
+        { id: 'delegate', name: 'Delegate', score: 0, turns: 0 },
+        { id: 'player', name: 'Player', score: 0, turns: 0 },
+      ],
+      playerOrder: ['owner', 'delegate', 'player'],
+    } as SpellingRoom
+
+    expect(activeHostId(room)).toBe('delegate')
+    expect(hasHostControl(room, 'delegate')).toBe(true)
+    expect(hasHostControl(room, 'owner')).toBe(false)
+    expect(judgeIdForPlayer(room, 'player')).toBe('delegate')
+    expect(judgeIdForPlayer(room, 'delegate')).toBe('player')
+    expect(eligibleTemporaryJudges(room).map((player) => player.id)).toEqual(['player'])
   })
 
   it('scales Save the Bee supply with each round', () => {
