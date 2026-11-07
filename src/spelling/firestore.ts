@@ -1073,28 +1073,46 @@ export async function replayRoom(code: string, actorId: string, choice: ReplayCh
 export async function startBonusGame(code: string, actorId: string, kind: BonusGameKind): Promise<void> {
   await mutate(code, (room) => {
     requireHost(room, actorId)
-    if (room.status !== 'finished' || gameMode(room) !== 'team') throw new Error('BONUS_UNAVAILABLE')
-    const leader = [...room.faceOffHistory].reverse().find((record) => record.winnerTeamId)?.winnerTeamId
-      ?? rankedTeams(room.teams)[0]?.id
+    const walkthroughLaunch = isPlaythroughMode() && room.status === 'lobby'
+    if ((!walkthroughLaunch && room.status !== 'finished') || (!walkthroughLaunch && gameMode(room) !== 'team')) throw new Error('BONUS_UNAVAILABLE')
+    if (walkthroughLaunch && room.players.length < 4) throw new Error('NEED_TEAMS')
+    const preparedRoom: SpellingRoom = walkthroughLaunch
+      ? {
+          ...room,
+          mode: 'team',
+          players: assignBalancedTeams(room.players, () => 0.5),
+          teams: room.teams.map((team) => ({ ...team, score: 0, saveTokensUsed: [0, 0, 0] })),
+          playerOrder: room.players.map((player) => player.id),
+          currentTurn: null,
+          faceOff: null,
+          premiumBank: null,
+          roundUsedPlayerIds: [],
+          openingCategory: null,
+          history: [],
+          usedWordIds: [],
+        }
+      : room
+    const leader = [...preparedRoom.faceOffHistory].reverse().find((record) => record.winnerTeamId)?.winnerTeamId
+      ?? rankedTeams(preparedRoom.teams)[0]?.id
       ?? 'honey'
-    const category = FACE_OFF_CATEGORIES[(room.faceOffHistory.length + room.history.length) % FACE_OFF_CATEGORIES.length]
+    const category = FACE_OFF_CATEGORIES[(preparedRoom.faceOffHistory.length + preparedRoom.history.length) % FACE_OFF_CATEGORIES.length]
     const count = kind === 'feud' ? 4 : 2
     const difficulty = kind === 'feud' ? 'tricky' : 'menace'
-    const words = [...room.usedWordIds]
+    const words = [...preparedRoom.usedWordIds]
     const wordIds: string[] = []
     for (let index = 0; index < count; index += 1) {
       const word = drawWord(WORD_BANK, category, difficulty, words, { mode: 'team', premiumOnly: kind === 'relay' })
       words.push(word.id)
       wordIds.push(word.id)
     }
-    const first = nextTeamPlayer(room.players, leader, 0)
+    const first = nextTeamPlayer(preparedRoom.players, leader, 0)
     if (!first) throw new Error('NEED_TEAMS')
     const bonusGame: BonusGame = {
       kind, phase: 'playing', controllingTeamId: leader, activeTeamId: leader, category,
       wordIds, wordIndex: 0, strikes: 0, boardValue: bonusGameValue(kind), activePlayerId: first.id,
       playerIndexes: { honey: 0, blue: 0 }, ruling: null,
     }
-    return { ...room, status: 'playing', bonusGame, usedWordIds: words }
+    return { ...preparedRoom, status: 'playing', bonusGame, usedWordIds: words }
   })
 }
 
