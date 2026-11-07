@@ -216,6 +216,7 @@ try {
       category: 'Internet Brain', wordIds: ['internet-1', 'internet-2', 'internet-3', 'internet-4'],
       wordIndex: 0, strikes: 0, boardValue: 3, activePlayerId: 'host-1',
       playerIndexes: { honey: 0, blue: 0 }, ruling: null,
+      notice: 'Word replaced — no result. Restart this word from the beginning.',
     },
     revision: 4,
     updatedAt: 5,

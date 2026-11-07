@@ -69,13 +69,18 @@ export function rankedTeams(teams: Team[]): Team[] {
 }
 
 export function assignBalancedTeams(players: Player[], random = Math.random): Player[] {
-  const shuffled = [...players]
+  const shuffled = shufflePlayers(players, random)
+  const assignments = new Map(shuffled.map((player, index) => [player.id, TEAM_IDS[index % TEAM_IDS.length]]))
+  return players.map((player) => ({ ...player, teamId: assignments.get(player.id) }))
+}
+
+export function shufflePlayers<T>(items: T[], random = Math.random): T[] {
+  const shuffled = [...items]
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(random() * (index + 1))
     ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
   }
-  const assignments = new Map(shuffled.map((player, index) => [player.id, TEAM_IDS[index % TEAM_IDS.length]]))
-  return players.map((player) => ({ ...player, teamId: assignments.get(player.id) }))
+  return shuffled
 }
 
 export function alternatingTeamOrder(players: Player[], firstTeamId: TeamId = 'honey'): string[] {
@@ -89,6 +94,26 @@ export function alternatingTeamOrder(players: Player[], firstTeamId: TeamId = 'h
     })
   }
   return order
+}
+
+export function playersInOrder(players: Player[], playerOrder: string[]): Player[] {
+  const byId = new Map(players.map((player) => [player.id, player]))
+  const ordered = playerOrder
+    .map((id) => byId.get(id))
+    .filter((player): player is Player => Boolean(player))
+  const orderedIds = new Set(ordered.map((player) => player.id))
+  return [...ordered, ...players.filter((player) => !orderedIds.has(player.id))]
+}
+
+export function randomizedPlayerOrder(
+  players: Player[],
+  mode: GameMode,
+  random = Math.random,
+): string[] {
+  const shuffled = shufflePlayers(players, random)
+  if (mode === 'classic') return shuffled.map((player) => player.id)
+  const firstTeamId = random() < 0.5 ? TEAM_IDS[0] : TEAM_IDS[1]
+  return alternatingTeamOrder(shuffled, firstTeamId)
 }
 
 export function faceOffRepresentativeIds(players: Player[], sequence: number): string[] {
@@ -190,7 +215,7 @@ export function drawWord(
   category: Category,
   difficulty: Difficulty,
   usedWordIds: string[],
-  options: { mode?: GameMode; premiumOnly?: boolean; random?: () => number } = {},
+  options: { mode?: GameMode; premiumOnly?: boolean; strictCategory?: boolean; random?: () => number } = {},
 ): WordCard {
   const random = options.random ?? Math.random
   const unused = bank.filter((card) =>
@@ -201,6 +226,10 @@ export function drawWord(
   const fallback = bank.filter((card) =>
     card.difficulty === difficulty && !usedWordIds.includes(card.id),
   )
+
+  if (options.strictCategory && unused.length === 0) {
+    throw new Error('WORD_CATEGORY_EXHAUSTED')
+  }
 
   if (options.premiumOnly) {
     const hardUnused = unused.filter((card) => card.teamSelectionWeight === 2)
@@ -244,16 +273,24 @@ export function rankedPlayers(players: Player[]): Player[] {
   return [...players].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
 }
 
-export function nextTurn(room: SpellingRoom): Pick<SpellingRoom, 'turnIndex' | 'currentTurn' | 'status'> {
+export function nextTurn(
+  room: SpellingRoom,
+  random = Math.random,
+): Pick<SpellingRoom, 'turnIndex' | 'currentTurn' | 'status' | 'playerOrder'> {
   const nextIndex = room.turnIndex + 1
   const totalTurns = room.playerOrder.length * TOTAL_ROUNDS
   if (nextIndex >= totalTurns) {
-    return { turnIndex: nextIndex, currentTurn: null, status: 'finished' }
+    return { turnIndex: nextIndex, currentTurn: null, status: 'finished', playerOrder: room.playerOrder }
   }
-  const nextPlayerId = room.playerOrder[nextIndex % room.playerOrder.length]
+  const startsNewRound = nextIndex % room.playerOrder.length === 0
+  const playerOrder = startsNewRound
+    ? randomizedPlayerOrder(room.players, 'classic', random)
+    : room.playerOrder
+  const nextPlayerId = playerOrder[nextIndex % playerOrder.length]
   return {
     turnIndex: nextIndex,
-    currentTurn: makeTurn(nextPlayerId, room.revision + 1, judgeIdForPlayer(room, nextPlayerId)),
+    currentTurn: makeTurn(nextPlayerId, room.revision + 1, judgeIdForPlayer({ ...room, playerOrder }, nextPlayerId)),
     status: 'playing',
+    playerOrder,
   }
 }

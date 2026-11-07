@@ -16,7 +16,9 @@ export type ReplayChoice = 'same' | 'shuffle' | 'setup'
 export type BonusGameKind = 'feud' | 'relay'
 export type BonusGamePhase = 'playing' | 'steal' | 'complete'
 export type FaceOffKind = 'round' | 'tiebreak'
-export type FaceOffStatus = 'ready' | 'open' | 'attempt' | 'steal' | 'category'
+export type FaceOffStatus = 'ready' | 'open' | 'attempt' | 'steal' | 'category' | 'exhausted' | 'result'
+export type FaceOffOutcome = 'winner' | 'double-miss' | 'void'
+export type FaceOffVoidReason = 'no-buzz' | 'replacement' | 'substitution' | 'technical'
 
 export interface WordCard {
   id: string
@@ -77,6 +79,7 @@ export interface CurrentTurn {
   isPremium?: boolean
   basePoints?: number
   bonusPoints?: number
+  notice?: string
 }
 
 export interface PremiumBank {
@@ -97,12 +100,26 @@ export interface FaceOff {
   judgeId: string
   category: Category
   categoryOptions: Category[]
-  wordId: string
+  wordId: string | null
   buzzedPlayerId?: string
   attemptPlayerId?: string
   attemptStartedAt?: number
   winnerPlayerId?: string
   winnerTeamId?: TeamId
+  outcome?: FaceOffOutcome
+  notice?: string
+  lastRuling?: FaceOffRulingUndo
+}
+
+export type FaceOffSnapshot = Omit<FaceOff, 'lastRuling'>
+
+export interface FaceOffRulingUndo {
+  faceOff: FaceOffSnapshot
+  teams: Team[]
+  faceOffHistory: FaceOffRecord[]
+  premiumBank: PremiumBank | null
+  status: SpellingRoom['status']
+  usedWordIds: string[]
 }
 
 export interface FaceOffRecord {
@@ -115,6 +132,8 @@ export interface FaceOffRecord {
   winnerPlayerId?: string
   winnerTeamId?: TeamId
   points?: number
+  outcome?: FaceOffOutcome
+  reason?: FaceOffVoidReason | 'double-miss'
 }
 
 export interface BonusGame {
@@ -130,6 +149,7 @@ export interface BonusGame {
   activePlayerId: string
   playerIndexes: Record<TeamId, number>
   ruling: 'correct' | 'incorrect' | null
+  notice?: string
 }
 
 export interface SpellingRoom {

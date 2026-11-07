@@ -85,14 +85,15 @@ service cloud.firestore {
 
     function validBonusGame(game) {
       return game == null || (game is map
-        && game.keys().hasOnly(['kind','phase','controllingTeamId','activeTeamId','category','wordIds','wordIndex','strikes','boardValue','activePlayerId','playerIndexes','ruling'])
+        && game.keys().hasOnly(['kind','phase','controllingTeamId','activeTeamId','category','wordIds','wordIndex','strikes','boardValue','activePlayerId','playerIndexes','ruling','notice'])
         && (game.kind == 'feud' || game.kind == 'relay')
         && (game.phase == 'playing' || game.phase == 'steal' || game.phase == 'complete')
         && game.wordIds is list && game.wordIds.size() <= 4
         && game.wordIndex is int && game.wordIndex >= 0 && game.wordIndex <= 3
         && game.strikes is int && game.strikes >= 0 && game.strikes <= 2
         && game.boardValue is int && game.boardValue >= 0 && game.boardValue <= 3
-        && game.activePlayerId is string && game.activePlayerId.size() <= 80);
+        && game.activePlayerId is string && game.activePlayerId.size() <= 80
+        && (!('notice' in game) || (game.notice is string && game.notice.size() <= 160)));
     }
 
     // A casual, no-account party game. The strict shape and bounds keep this

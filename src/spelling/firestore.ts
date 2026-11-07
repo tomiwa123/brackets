@@ -10,8 +10,6 @@ import {
   drawWord,
   eligiblePremiumPlayers,
   eligibleTemporaryJudges,
-  faceOffPoints,
-  faceOffRepresentativeIds,
   gameMode,
   hasHostControl,
   judgeIdForPlayer,
@@ -21,19 +19,29 @@ import {
   bonusGameValue,
   nextRallyPlayerId,
   nextTurn,
+  playersInOrder,
   pointsForRound,
   premiumChunkPoints,
+  randomizedPlayerOrder,
   rankedTeams,
   remainingSaveTokens,
   roundForTurn,
-  startingPremiumBank,
   teamForPlayer,
   validatedTeamName,
 } from './gameEngine'
 import { CATEGORIES } from './types'
-import type { BonusGame, BonusGameKind, Category, CurrentTurn, FaceOff, FaceOffKind, FaceOffRecord, GameMode, Hint, PremiumBank, ReplayChoice, SpellingRoom, TeamId } from './types'
+import type { BonusGame, BonusGameKind, Category, CurrentTurn, FaceOff, GameMode, Hint, ReplayChoice, SpellingRoom, TeamId } from './types'
 import { WORD_BANK } from './words'
 import { MAX_PLAYERS } from './config'
+import {
+  applyFaceOffRulingState,
+  chooseExhaustedFaceOffCategoryState,
+  clearFaceOffRecoveryState,
+  continueFaceOffResultState,
+  createFaceOffState,
+  replaceFaceOffWordState,
+  undoFaceOffRulingState,
+} from './faceOffEngine'
 
 const COLLECTION = 'spellingRooms'
 const PLAYER_KEY = 'spelling-night-player-id'
@@ -146,7 +154,7 @@ const FACE_OFF_CATEGORIES = CATEGORIES.filter((category) => category !== "Dealer
 function faceOffJudgeId(room: SpellingRoom, representativeIds: string[]): string {
   const activeHost = activeHostId(room)
   if (!representativeIds.includes(activeHost)) return activeHost
-  return room.players.find((player) =>
+  return playersInOrder(room.players, room.playerOrder).find((player) =>
     player.id !== activeHost
     && (!room.temporaryHostId || player.id !== room.hostId)
     && !player.isGuest
@@ -154,31 +162,8 @@ function faceOffJudgeId(room: SpellingRoom, representativeIds: string[]): string
   )?.id ?? eligibleTemporaryJudges(room)[0]?.id ?? activeHost
 }
 
-function createFaceOff(room: SpellingRoom, round: number, kind: FaceOffKind): Pick<SpellingRoom, 'faceOff' | 'usedWordIds'> {
-  const tieBreakCount = room.faceOffHistory.filter((record) => record.kind === 'tiebreak').length
-  const sequence = kind === 'round' ? room.faceOffRotationOffset + round - 1 : room.faceOffRotationOffset + 3 + tieBreakCount
-  const representativeIds = faceOffRepresentativeIds(room.players, sequence)
-  const category = FACE_OFF_CATEGORIES[sequence % FACE_OFF_CATEGORIES.length]
-  const difficulty = round === 1 ? 'warmup' : round === 2 ? 'tricky' : 'menace'
-  const word = drawWord(WORD_BANK, category, difficulty, room.usedWordIds, { mode: 'team' })
-  const optionStart = (sequence + 1) % CATEGORIES.length
-  const categoryOptions = Array.from({ length: 3 }, (_, index) => CATEGORIES[(optionStart + index) % CATEGORIES.length])
-  const faceOff: FaceOff = {
-    id: randomId('faceoff'),
-    kind,
-    round,
-    status: 'ready',
-    representativeIds,
-    judgeId: faceOffJudgeId(room, representativeIds),
-    category,
-    categoryOptions,
-    wordId: word.id,
-  }
-  return { faceOff, usedWordIds: [...room.usedWordIds, word.id] }
-}
-
 function startRally(room: SpellingRoom, category: Category, startingTeamId: TeamId): SpellingRoom {
-  const playerOrder = alternatingTeamOrder(room.players, startingTeamId)
+  const playerOrder = alternatingTeamOrder(playersInOrder(room.players, room.playerOrder), startingTeamId)
   const firstPlayerId = playerOrder[0]
   const round = roundForTurn(room.turnIndex, playerOrder.length)
   const difficulty = round === 1 ? 'warmup' : round === 2 ? 'tricky' : 'menace'
@@ -450,7 +435,7 @@ export async function startSpellingGame(code: string, actorId: string): Promise<
         throw new Error('NEED_TEAMS')
       }
     }
-    const playerOrder = gameMode(room) === 'team' ? alternatingTeamOrder(room.players) : room.playerOrder
+    const playerOrder = randomizedPlayerOrder(room.players, gameMode(room))
     const firstPlayerId = playerOrder[0]
     const started: SpellingRoom = {
       ...room,
@@ -459,23 +444,23 @@ export async function startSpellingGame(code: string, actorId: string): Promise<
       turnIndex: 0,
       currentTurn: gameMode(room) === 'team'
         ? null
-        : makeTurn(firstPlayerId, room.revision + 1, judgeIdForPlayer(room, firstPlayerId)),
+        : makeTurn(firstPlayerId, room.revision + 1, judgeIdForPlayer({ ...room, playerOrder }, firstPlayerId)),
       faceOffHistory: [],
       premiumBank: null,
       roundUsedPlayerIds: [],
       openingCategory: null,
       bonusGame: null,
     }
-    return gameMode(room) === 'team' ? { ...started, ...createFaceOff(started, 1, 'round') } : started
+    return gameMode(room) === 'team' ? { ...started, ...createFaceOffState(started, 1, 'round') } : started
   })
 }
 
 export async function unlockFaceOff(code: string, actorId: string): Promise<void> {
   await mutate(code, (room) => {
     const faceOff = room.faceOff
-    if (!faceOff || faceOff.status !== 'ready') return room
+    if (!faceOff || faceOff.status !== 'ready' || !faceOff.wordId) return room
     if (!hasHostControl(room, actorId) && actorId !== faceOff.judgeId) throw new Error('JUDGE_ONLY')
-    return { ...room, faceOff: { ...faceOff, status: 'open' } }
+    return { ...room, faceOff: { ...clearFaceOffRecoveryState(faceOff), status: 'open' } }
   })
 }
 
@@ -491,7 +476,7 @@ export async function buzzFaceOff(code: string, actorId: string, overridePlayerI
     return {
       ...room,
       faceOff: {
-        ...faceOff,
+        ...clearFaceOffRecoveryState(faceOff),
         status: 'attempt',
         buzzedPlayerId: playerId,
         attemptPlayerId: playerId,
@@ -506,7 +491,7 @@ export async function resetFaceOffBuzz(code: string, actorId: string): Promise<v
     const faceOff = room.faceOff
     if (faceOff && actorId !== faceOff.judgeId && !hasHostControl(room, actorId)) throw new Error('JUDGE_ONLY')
     if (!faceOff || (faceOff.status !== 'attempt' && faceOff.status !== 'steal')) return room
-    const resetFaceOff = { ...faceOff }
+    const resetFaceOff = clearFaceOffRecoveryState(faceOff)
     delete resetFaceOff.buzzedPlayerId
     delete resetFaceOff.attemptPlayerId
     delete resetFaceOff.attemptStartedAt
@@ -522,88 +507,82 @@ export async function judgeFaceOff(code: string, actorId: string, correct: boole
     const faceOff = room.faceOff
     if (!faceOff || (faceOff.status !== 'attempt' && faceOff.status !== 'steal') || !faceOff.attemptPlayerId) return room
     if (actorId !== faceOff.judgeId) throw new Error('JUDGE_ONLY')
-    const attemptPlayer = room.players.find((player) => player.id === faceOff.attemptPlayerId)
-    const winnerTeamId = attemptPlayer?.teamId
-    if (correct && winnerTeamId) {
-      const awardedPoints = faceOffPoints(faceOff.round, faceOff.kind)
-      const record: FaceOffRecord = {
-        id: faceOff.id,
-        kind: faceOff.kind,
-        round: faceOff.round,
-        representativeIds: faceOff.representativeIds,
-        category: faceOff.category,
-        wordId: faceOff.wordId,
-        winnerPlayerId: attemptPlayer.id,
-        winnerTeamId,
-        points: awardedPoints,
-      }
-      if (faceOff.kind === 'tiebreak') {
-        return {
-          ...room,
-          status: 'finished',
-          faceOff: null,
-          teams: room.teams.map((team) => team.id === winnerTeamId ? { ...team, score: team.score + awardedPoints } : team),
-          faceOffHistory: [...room.faceOffHistory, record],
-        }
-      }
-      const bankPoints = startingPremiumBank(faceOff.round, room.players.length)
-      const premiumBank: PremiumBank = {
-        round: faceOff.round,
-        startPoints: bankPoints,
-        remainingPoints: bankPoints,
-        controllingTeamId: winnerTeamId,
-        carriedCategory: faceOff.category,
-        selectedPlayerId: null,
-      }
-      return {
-        ...room,
-        faceOff: null,
-        premiumBank,
-        currentTurn: null,
-        roundUsedPlayerIds: [],
-        teams: room.teams.map((team) => team.id === winnerTeamId
-          ? { ...team, score: team.score + awardedPoints }
-          : team),
-        faceOffHistory: [...room.faceOffHistory, record],
-      }
+    return applyFaceOffRulingState(room, correct)
+  })
+}
+
+function requireFaceOffRecoveryAuthority(room: SpellingRoom, actorId: string): FaceOff {
+  const faceOff = room.faceOff
+  if (!faceOff) throw new Error('FACE_OFF_UNAVAILABLE')
+  if (!hasHostControl(room, actorId) && actorId !== faceOff.judgeId) throw new Error('JUDGE_ONLY')
+  return faceOff
+}
+
+export async function resolveNoBuzz(code: string, actorId: string): Promise<void> {
+  await mutate(code, (room) => {
+    const faceOff = requireFaceOffRecoveryAuthority(room, actorId)
+    if (faceOff.status !== 'open') return room
+    return replaceFaceOffWordState(room, 'no-buzz')
+  })
+}
+
+export async function replaceFaceOffWord(code: string, actorId: string): Promise<void> {
+  await mutate(code, (room) => {
+    const faceOff = requireFaceOffRecoveryAuthority(room, actorId)
+    if (!['ready', 'open', 'attempt', 'steal'].includes(faceOff.status)) return room
+    return replaceFaceOffWordState(room, 'replacement')
+  })
+}
+
+export async function undoFaceOffRuling(code: string, actorId: string): Promise<void> {
+  await mutate(code, (room) => {
+    requireFaceOffRecoveryAuthority(room, actorId)
+    return undoFaceOffRulingState(room)
+  })
+}
+
+export async function continueFaceOffResult(code: string, actorId: string): Promise<void> {
+  await mutate(code, (room) => {
+    requireFaceOffRecoveryAuthority(room, actorId)
+    return continueFaceOffResultState(room)
+  })
+}
+
+export async function chooseFaceOffReplacementCategory(code: string, actorId: string, category: Category): Promise<void> {
+  await mutate(code, (room) => {
+    requireFaceOffRecoveryAuthority(room, actorId)
+    return chooseExhaustedFaceOffCategoryState(room, category)
+  })
+}
+
+export async function reassignFaceOffJudge(code: string, actorId: string, judgeId: string): Promise<void> {
+  await mutate(code, (room) => {
+    requireHost(room, actorId)
+    const faceOff = room.faceOff
+    const judge = room.players.find((player) => player.id === judgeId)
+    if (!faceOff || !['ready', 'exhausted'].includes(faceOff.status)) return room
+    if (!judge || judge.isGuest || faceOff.representativeIds.includes(judge.id)) throw new Error('INVALID_FACE_OFF_JUDGE')
+    return { ...room, faceOff: { ...faceOff, judgeId: judge.id, notice: `${judge.name} is now judging this face-off.` } }
+  })
+}
+
+export async function substituteFaceOffRepresentative(code: string, actorId: string, playerId: string): Promise<void> {
+  await mutate(code, (room) => {
+    requireHost(room, actorId)
+    const faceOff = room.faceOff
+    const replacement = room.players.find((player) => player.id === playerId)
+    if (!faceOff || !replacement?.teamId || ['result', 'exhausted'].includes(faceOff.status)) return room
+    const replacedIndex = faceOff.representativeIds.findIndex((id) => room.players.find((player) => player.id === id)?.teamId === replacement.teamId)
+    if (replacedIndex < 0 || faceOff.representativeIds.includes(replacement.id)) throw new Error('INVALID_REPRESENTATIVE')
+    const representativeIds = [...faceOff.representativeIds]
+    representativeIds[replacedIndex] = replacement.id
+    const judgeId = representativeIds.includes(faceOff.judgeId)
+      ? faceOffJudgeId(room, representativeIds)
+      : faceOff.judgeId
+    if (faceOff.status === 'ready') {
+      return { ...room, faceOff: { ...clearFaceOffRecoveryState(faceOff), representativeIds, judgeId, notice: `${replacement.name} steps in for the face-off.` } }
     }
-    if (faceOff.status === 'attempt') {
-      const stealPlayerId = faceOff.representativeIds.find((playerId) => playerId !== faceOff.attemptPlayerId)
-      return {
-        ...room,
-        faceOff: { ...faceOff, status: 'steal', attemptPlayerId: stealPlayerId, attemptStartedAt: Date.now() },
-      }
-    }
-    const record: FaceOffRecord = {
-      id: faceOff.id,
-      kind: faceOff.kind,
-      round: faceOff.round,
-      representativeIds: faceOff.representativeIds,
-      category: faceOff.category,
-      wordId: faceOff.wordId,
-      points: 0,
-    }
-    const withoutWinner = { ...room, faceOffHistory: [...room.faceOffHistory, record] }
-    if (faceOff.kind === 'tiebreak') return { ...withoutWinner, ...createFaceOff(withoutWinner, 3, 'tiebreak') }
-    const defaultStartingTeamId = room.playerOrder
-      .map((id) => room.players.find((player) => player.id === id)?.teamId)
-      .find((id): id is TeamId => Boolean(id)) ?? 'honey'
-    const bankPoints = startingPremiumBank(faceOff.round, room.players.length)
-    const premiumBank: PremiumBank = {
-      round: faceOff.round,
-      startPoints: bankPoints,
-      remainingPoints: bankPoints,
-      controllingTeamId: defaultStartingTeamId,
-      carriedCategory: faceOff.category,
-      selectedPlayerId: null,
-    }
-    return {
-      ...withoutWinner,
-      faceOff: null,
-      premiumBank,
-      currentTurn: null,
-      roundUsedPlayerIds: [],
-    }
+    return replaceFaceOffWordState(room, 'substitution', { representativeIds, judgeId })
   })
 }
 
@@ -839,7 +818,7 @@ export async function declineSaveTheBee(code: string, actorId: string): Promise<
 
 export async function undoRuling(code: string, actorId: string): Promise<void> {
   await mutate(code, (room) => {
-    if (judgeIdForTurn(room) !== actorId) throw new Error('JUDGE_ONLY')
+    if (judgeIdForTurn(room) !== actorId && !hasHostControl(room, actorId)) throw new Error('JUDGE_ONLY')
     const turn = room.currentTurn
     const record = room.history.at(-1)
     if (!turn?.ruling || !record || record.turnId !== turn.turnId) return room
@@ -872,9 +851,9 @@ export async function undoRuling(code: string, actorId: string): Promise<void> {
   })
 }
 
-export async function skipWord(code: string, actorId: string): Promise<void> {
+export async function replaceWord(code: string, actorId: string): Promise<void> {
   await mutate(code, (room) => {
-    if (judgeIdForTurn(room) !== actorId) throw new Error('JUDGE_ONLY')
+    if (judgeIdForTurn(room) !== actorId && !hasHostControl(room, actorId)) throw new Error('JUDGE_ONLY')
     const turn = room.currentTurn
     if (!turn?.category || turn.ruling) return room
     const round = turn.isPremium ? (room.premiumBank?.round ?? roundForTurn(room.turnIndex, room.playerOrder.length)) : roundForTurn(room.turnIndex, room.playerOrder.length)
@@ -882,10 +861,38 @@ export async function skipWord(code: string, actorId: string): Promise<void> {
     const word = drawWord(WORD_BANK, turn.category, difficulty, room.usedWordIds, {
       mode: gameMode(room),
       premiumOnly: Boolean(turn.isPremium),
+      strictCategory: true,
     })
     return {
       ...room,
-      currentTurn: { ...turn, wordId: word.id, spellingStartedAt: Date.now(), requestedHints: [] },
+      currentTurn: {
+        ...turn,
+        wordId: word.id,
+        spellingStartedAt: Date.now(),
+        requestedHints: [],
+        notice: 'Word replaced — no result.',
+      },
+      usedWordIds: [...room.usedWordIds, word.id],
+    }
+  })
+}
+
+export async function replaceBonusWord(code: string, actorId: string): Promise<void> {
+  await mutate(code, (room) => {
+    requireHost(room, actorId)
+    const bonus = room.bonusGame
+    if (!bonus || bonus.phase === 'complete' || bonus.ruling) return room
+    const difficulty = bonus.kind === 'feud' ? 'tricky' : 'menace'
+    const word = drawWord(WORD_BANK, bonus.category, difficulty, room.usedWordIds, {
+      mode: 'team',
+      premiumOnly: bonus.kind === 'relay',
+      strictCategory: true,
+    })
+    const wordIds = [...bonus.wordIds]
+    wordIds[bonus.wordIndex] = word.id
+    return {
+      ...room,
+      bonusGame: { ...bonus, wordIds, notice: 'Word replaced — no result. Restart this word from the beginning.' },
       usedWordIds: [...room.usedWordIds, word.id],
     }
   })
@@ -932,7 +939,7 @@ export async function advanceTurn(code: string, actorId: string): Promise<void> 
               roundUsedPlayerIds: [],
               openingCategory: null,
             }
-            return { ...betweenRounds, ...createFaceOff(betweenRounds, nextRound, 'round') }
+            return { ...betweenRounds, ...createFaceOffState(betweenRounds, nextRound, 'round') }
           }
           // End of round 3: check tiebreak
           const [first, second] = rankedTeams(room.teams)
@@ -946,7 +953,7 @@ export async function advanceTurn(code: string, actorId: string): Promise<void> 
               roundUsedPlayerIds: [],
               openingCategory: null,
             }
-            return { ...tiedRoom, ...createFaceOff(tiedRoom, 3, 'tiebreak') }
+            return { ...tiedRoom, ...createFaceOffState(tiedRoom, 3, 'tiebreak') }
           }
           return {
             ...room,
@@ -999,7 +1006,7 @@ export async function advanceTurn(code: string, actorId: string): Promise<void> 
         roundUsedPlayerIds: [],
         openingCategory: null,
       }
-      return { ...betweenRounds, ...createFaceOff(betweenRounds, nextRound, 'round') }
+      return { ...betweenRounds, ...createFaceOffState(betweenRounds, nextRound, 'round') }
     }
 
     // End of round 3: check tiebreak
@@ -1014,7 +1021,7 @@ export async function advanceTurn(code: string, actorId: string): Promise<void> 
         roundUsedPlayerIds: [],
         openingCategory: null,
       }
-      return { ...tiedRoom, ...createFaceOff(tiedRoom, 3, 'tiebreak') }
+      return { ...tiedRoom, ...createFaceOffState(tiedRoom, 3, 'tiebreak') }
     }
     return {
       ...room,
@@ -1033,9 +1040,7 @@ export async function replayRoom(code: string, actorId: string, choice: ReplayCh
     const players = choice === 'shuffle' && gameMode(room) === 'team'
       ? assignBalancedTeams(room.players)
       : room.players
-    const playerOrder = gameMode(room) === 'team'
-      ? alternatingTeamOrder(players)
-      : players.map((player) => player.id)
+    const playerOrder = randomizedPlayerOrder(players, gameMode(room))
     const firstPlayerId = playerOrder[0]
     const startImmediately = choice === 'same'
     const defaultNames = new Map(createDefaultTeams().map((team) => [team.id, team.name]))
@@ -1052,7 +1057,7 @@ export async function replayRoom(code: string, actorId: string, choice: ReplayCh
       })),
       turnIndex: 0,
       currentTurn: startImmediately && gameMode(room) === 'classic'
-        ? makeTurn(firstPlayerId, room.revision + 1, judgeIdForPlayer(room, firstPlayerId))
+        ? makeTurn(firstPlayerId, room.revision + 1, judgeIdForPlayer({ ...room, playerOrder }, firstPlayerId))
         : null,
       faceOff: null,
       faceOffHistory: [],
@@ -1065,7 +1070,7 @@ export async function replayRoom(code: string, actorId: string, choice: ReplayCh
       usedWordIds: [],
     }
     return startImmediately && gameMode(room) === 'team'
-      ? { ...resetRoom, ...createFaceOff(resetRoom, 1, 'round') }
+      ? { ...resetRoom, ...createFaceOffState(resetRoom, 1, 'round') }
       : resetRoom
   })
 }
@@ -1076,13 +1081,14 @@ export async function startBonusGame(code: string, actorId: string, kind: BonusG
     const walkthroughLaunch = isPlaythroughMode() && room.status === 'lobby'
     if ((!walkthroughLaunch && room.status !== 'finished') || (!walkthroughLaunch && gameMode(room) !== 'team')) throw new Error('BONUS_UNAVAILABLE')
     if (walkthroughLaunch && room.players.length < 4) throw new Error('NEED_TEAMS')
+    const walkthroughPlayers = walkthroughLaunch ? assignBalancedTeams(room.players, () => 0.5) : room.players
     const preparedRoom: SpellingRoom = walkthroughLaunch
       ? {
           ...room,
           mode: 'team',
-          players: assignBalancedTeams(room.players, () => 0.5),
+          players: walkthroughPlayers,
           teams: room.teams.map((team) => ({ ...team, score: 0, saveTokensUsed: [0, 0, 0] })),
-          playerOrder: room.players.map((player) => player.id),
+          playerOrder: randomizedPlayerOrder(walkthroughPlayers, 'team'),
           currentTurn: null,
           faceOff: null,
           premiumBank: null,
@@ -1105,7 +1111,8 @@ export async function startBonusGame(code: string, actorId: string, kind: BonusG
       words.push(word.id)
       wordIds.push(word.id)
     }
-    const first = nextTeamPlayer(preparedRoom.players, leader, 0)
+    const orderedPlayers = playersInOrder(preparedRoom.players, preparedRoom.playerOrder)
+    const first = nextTeamPlayer(orderedPlayers, leader, 0)
     if (!first) throw new Error('NEED_TEAMS')
     const bonusGame: BonusGame = {
       kind, phase: 'playing', controllingTeamId: leader, activeTeamId: leader, category,
@@ -1121,6 +1128,8 @@ export async function judgeBonusGame(code: string, actorId: string, correct: boo
     requireHost(room, actorId)
     const bonus = room.bonusGame
     if (!bonus || bonus.phase === 'complete' || bonus.ruling) return room
+    const activeBonus = { ...bonus }
+    delete activeBonus.notice
     const other: TeamId = bonus.activeTeamId === 'honey' ? 'blue' : 'honey'
     if (bonus.kind === 'relay') {
       const last = bonus.wordIndex >= bonus.wordIds.length - 1
@@ -1130,30 +1139,30 @@ export async function judgeBonusGame(code: string, actorId: string, correct: boo
         ...room,
         status: last ? 'finished' : 'playing',
         teams: room.teams.map((team) => team.id === bonus.activeTeamId ? { ...team, score: team.score + awarded } : team),
-        bonusGame: last ? { ...bonus, phase: 'complete', ruling: correct ? 'correct' : 'incorrect' } : {
-          ...bonus, wordIndex: bonus.wordIndex + 1, activeTeamId: nextTeam,
-          activePlayerId: nextTeamPlayer(room.players, nextTeam, 0)!.id, ruling: null,
+        bonusGame: last ? { ...activeBonus, phase: 'complete', ruling: correct ? 'correct' : 'incorrect' } : {
+          ...activeBonus, wordIndex: bonus.wordIndex + 1, activeTeamId: nextTeam,
+          activePlayerId: nextTeamPlayer(playersInOrder(room.players, room.playerOrder), nextTeam, 0)!.id, ruling: null,
         },
       }
     }
     if (bonus.phase === 'steal') {
       const awarded = correct ? bonus.boardValue : 0
-      return { ...room, status: 'finished', teams: room.teams.map((team) => team.id === bonus.activeTeamId ? { ...team, score: team.score + awarded } : team), bonusGame: { ...bonus, phase: 'complete', ruling: correct ? 'correct' : 'incorrect' } }
+      return { ...room, status: 'finished', teams: room.teams.map((team) => team.id === bonus.activeTeamId ? { ...team, score: team.score + awarded } : team), bonusGame: { ...activeBonus, phase: 'complete', ruling: correct ? 'correct' : 'incorrect' } }
     }
     if (correct) {
       const nextIndex = bonus.wordIndex + 1
       if (nextIndex >= 3) {
-        return { ...room, status: 'finished', teams: room.teams.map((team) => team.id === bonus.activeTeamId ? { ...team, score: team.score + bonus.boardValue } : team), bonusGame: { ...bonus, phase: 'complete', ruling: 'correct', wordIndex: 2 } }
+        return { ...room, status: 'finished', teams: room.teams.map((team) => team.id === bonus.activeTeamId ? { ...team, score: team.score + bonus.boardValue } : team), bonusGame: { ...activeBonus, phase: 'complete', ruling: 'correct', wordIndex: 2 } }
       }
       const pi = bonus.playerIndexes[bonus.activeTeamId] + 1
-      return { ...room, bonusGame: { ...bonus, wordIndex: nextIndex, playerIndexes: { ...bonus.playerIndexes, [bonus.activeTeamId]: pi }, activePlayerId: nextTeamPlayer(room.players, bonus.activeTeamId, pi)!.id } }
+      return { ...room, bonusGame: { ...activeBonus, wordIndex: nextIndex, playerIndexes: { ...bonus.playerIndexes, [bonus.activeTeamId]: pi }, activePlayerId: nextTeamPlayer(playersInOrder(room.players, room.playerOrder), bonus.activeTeamId, pi)!.id } }
     }
     const strikes = bonus.strikes + 1
     if (strikes >= 2) {
       const stealTeam: TeamId = other
-      return { ...room, bonusGame: { ...bonus, phase: 'steal', activeTeamId: stealTeam, activePlayerId: nextTeamPlayer(room.players, stealTeam, 0)!.id, wordIndex: 3, boardValue: Math.max(1, 3 - bonus.wordIndex), strikes } }
+      return { ...room, bonusGame: { ...activeBonus, phase: 'steal', activeTeamId: stealTeam, activePlayerId: nextTeamPlayer(playersInOrder(room.players, room.playerOrder), stealTeam, 0)!.id, wordIndex: 3, boardValue: Math.max(1, 3 - bonus.wordIndex), strikes } }
     }
     const pi = bonus.playerIndexes[bonus.activeTeamId] + 1
-    return { ...room, bonusGame: { ...bonus, strikes, playerIndexes: { ...bonus.playerIndexes, [bonus.activeTeamId]: pi }, activePlayerId: nextTeamPlayer(room.players, bonus.activeTeamId, pi)!.id } }
+    return { ...room, bonusGame: { ...activeBonus, strikes, playerIndexes: { ...bonus.playerIndexes, [bonus.activeTeamId]: pi }, activePlayerId: nextTeamPlayer(playersInOrder(room.players, room.playerOrder), bonus.activeTeamId, pi)!.id } }
   })
 }

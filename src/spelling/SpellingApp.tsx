@@ -8,9 +8,11 @@ import {
   assignTemporaryHost,
   buzzFaceOff,
   chooseCategory,
+  chooseFaceOffReplacementCategory,
   clearPlaythroughSessions,
   closeSpellingRoom,
   confirmPremiumTurn,
+  continueFaceOffResult,
   createSpellingRoom,
   declineSaveTheBee,
   getRememberedSession,
@@ -26,6 +28,10 @@ import {
   movePlayerToTeam,
   presentationCodeFromPath,
   reassignJudge,
+  reassignFaceOffJudge,
+  replaceBonusWord,
+  replaceFaceOffWord,
+  replaceWord,
   resetFaceOffBuzz,
   renameTeam,
   replayRoom,
@@ -35,11 +41,13 @@ import {
   setGameMode,
   setTeamColor,
   shuffleTeamAssignments,
-  skipWord,
+  resolveNoBuzz,
   startSpellingGame,
   startBonusGame,
   undoRuling,
+  undoFaceOffRuling,
   unlockFaceOff,
+  substituteFaceOffRepresentative,
 } from './firestore'
 import type { PlaythroughPlayerPersona } from './firestore'
 import {
@@ -50,6 +58,7 @@ import {
   hasHostControl,
   judgeIdForTurn,
   pointsForRound,
+  playersInOrder,
   premiumChunkPoints,
   rankedPlayers,
   rankedTeams,
@@ -88,6 +97,9 @@ function messageFor(error: unknown): string {
     TEAM_NAME_REQUIRED: 'Team names cannot be blank.',
     TEAM_NAME_TOO_LONG: 'Keep team names to 24 characters or fewer.',
     TEAM_NAME_TAKEN: 'The two teams need different names.',
+    WORD_CATEGORY_EXHAUSTED: 'No unused words remain in this category at the current difficulty. Choose another category.',
+    INVALID_FACE_OFF_JUDGE: 'Choose a connected player who is not competing in this face-off.',
+    INVALID_REPRESENTATIVE: 'Choose another player from the same team.',
   }
   return messages[message] ?? (message || 'Something went wrong. Please try again.')
 }
@@ -403,7 +415,7 @@ function CategoryPicker({ room, act }: { room: SpellingRoom; act: (work: () => P
       <GameHeader room={room} act={act} />
       <section className="category-stage">
         <p className="eyebrow">Round {round} · {ROUND_LABELS[round - 1]}</p>
-        <h1>{player.name}, pick your poison.</h1>
+        <h1>{me === player.id ? 'Your turn — pick your poison.' : `${player.name}, pick your poison.`}</h1>
         {team && <p className="active-team"><span style={{ background: team.color }} /> Representing {team.name}</p>}
         <p>{mayChoose ? 'Choose the kind of trouble you want.' : `${player.name} is choosing a category…`}</p>
         {usesTemporaryJudge && judge && <div className="temporary-judge-banner"><div><small>Temporary judge</small><b>{judge.name} is judging this turn.</b></div>{canReassign && <button onClick={() => act(() => reassignJudge(room.roomCode, me))}>Change judge</button>}</div>}
@@ -418,7 +430,7 @@ function CategoryPicker({ room, act }: { room: SpellingRoom; act: (work: () => P
 function FaceOffView({ room, act }: { room: SpellingRoom; act: (work: () => Promise<void>) => void }) {
   const faceOff = room.faceOff!
   const me = getSpellingPlayerId()
-  const word = getWord(faceOff.wordId)!
+  const word = faceOff.wordId ? getWord(faceOff.wordId) : null
   const representatives = faceOff.representativeIds
     .map((id) => room.players.find((player) => player.id === id))
     .filter((player) => Boolean(player))
@@ -431,13 +443,19 @@ function FaceOffView({ room, act }: { room: SpellingRoom; act: (work: () => Prom
   const stageCopy = isTiebreak ? 'Sudden death' : `Round ${faceOff.round} face-off`
   const pts = faceOffPoints(faceOff.round, faceOff.kind)
   const bankPts = startingPremiumBank(faceOff.round, room.players.length)
+  const mayRecover = isJudge || isHost
+  const judgeOptions = room.players.filter((player) => !player.isGuest && !faceOff.representativeIds.includes(player.id))
+  const replaceCurrentWord = () => {
+    if ((faceOff.status === 'attempt' || faceOff.status === 'steal') && !window.confirm('Void the current attempt and give both representatives a fresh word?')) return
+    act(() => replaceFaceOffWord(room.roomCode, me))
+  }
 
   return (
     <main className="spell-shell game-page faceoff-page">
       <GameHeader room={room} act={act} />
       <section className="faceoff-stage">
         <p className="eyebrow"><Zap size={15} /> {stageCopy} · {faceOff.category}</p>
-        <h1>{faceOff.status === 'open' ? 'Buzzers are live.' : attempting ? `${attempting.name} is spelling.` : 'Step up to the buzzers.'}</h1>
+        <h1>{faceOff.status === 'result' ? `${room.players.find((player) => player.id === faceOff.winnerPlayerId)?.name} wins the face-off.` : faceOff.status === 'exhausted' ? 'This category is out of words.' : faceOff.status === 'open' ? 'Buzzers are live.' : attempting ? (attempting.id === me ? 'Your turn — spell it out.' : `${attempting.name} is spelling.`) : 'Step up to the buzzers.'}</h1>
         {!isTiebreak && (
           <div className="faceoff-value-tag">
             FACE-OFF: {pts} POINTS · THEN {bankPts} PREMIUM POINTS UP FOR GRABS
@@ -449,6 +467,8 @@ function FaceOffView({ room, act }: { room: SpellingRoom; act: (work: () => Prom
             : `First buzz or steal scores ${pts} points and locks ${faceOff.category} for the ${bankPts}-point shared Premium Bank.`}
         </p>
 
+        {faceOff.notice && <div className="recovery-notice"><RotateCcw size={18} /><span>{faceOff.notice}</span></div>}
+
         <div className="faceoff-podiums">
           {representatives.map((player) => {
             if (!player) return null
@@ -458,11 +478,19 @@ function FaceOffView({ room, act }: { room: SpellingRoom; act: (work: () => Prom
           })}
         </div>
 
-        {faceOff.status === 'ready' && <div className="faceoff-control"><div className="readiness"><span>3</span><span>2</span><span>1</span></div><p>The judge plays the word, then opens both buzzers.</p>{isJudge ? <><div className="secret-answer"><small>Judge only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><div className="faceoff-actions faceoff-setup-actions"><button onClick={() => speak(word.word)}><small>Step 1</small><Volume2 size={18} /> Play face-off word</button><button className="unlock-buzzers" onClick={() => act(() => unlockFaceOff(room.roomCode, me))}><small>Step 2</small><Zap size={18} /> Open both buzzers</button></div><p className="control-help">Open the buzzers only after the word has finished playing.</p></> : <p className="waiting-copy">{judge?.name} is preparing the word…</p>}</div>}
+        {faceOff.status === 'ready' && word && <div className="faceoff-control"><div className="readiness"><span>3</span><span>2</span><span>1</span></div><p>The judge plays the word, then opens both buzzers.</p>{isJudge ? <><div className="secret-answer"><small>Judge only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><div className="faceoff-actions faceoff-setup-actions"><button onClick={() => speak(word.word)}><small>Step 1</small><Volume2 size={18} /> Play face-off word</button><button className="unlock-buzzers" onClick={() => act(() => unlockFaceOff(room.roomCode, me))}><small>Step 2</small><Zap size={18} /> Open both buzzers</button></div><p className="control-help">Open the buzzers only after the word has finished playing.</p></> : <p className="waiting-copy">{judge?.name} is preparing the word…</p>}</div>}
 
-        {faceOff.status === 'open' && <div className="buzzer-stage"><p>The word has finished. Buzz when you are ready to spell.</p>{isRepresentative ? <button className="giant-buzzer" onClick={() => act(() => buzzFaceOff(room.roomCode, me))}><BellRing /> BUZZ</button> : <div className="buzzer-open"><Zap size={34} /><b>Buzzers are live</b><span>Waiting for a representative…</span></div>}{(isJudge || isHost) && <div className="manual-buzzers"><small>Judge manual override · choose who buzzed first</small>{representatives.map((player) => player && <button key={player.id} onClick={() => act(() => buzzFaceOff(room.roomCode, me, player.id))}>{player.name}</button>)}</div>}</div>}
+        {faceOff.status === 'open' && <div className="buzzer-stage"><p>The word has finished. Buzz when you are ready to spell.</p>{isRepresentative ? <button className="giant-buzzer" onClick={() => act(() => buzzFaceOff(room.roomCode, me))}><BellRing /> BUZZ</button> : <div className="buzzer-open"><Zap size={34} /><b>Buzzers are live</b><span>Waiting for a representative…</span></div>}{mayRecover && <div className="manual-buzzers"><small>Judge manual override · choose who buzzed first</small>{representatives.map((player) => player && <button key={player.id} onClick={() => act(() => buzzFaceOff(room.roomCode, me, player.id))}>{player.name}</button>)}<button className="no-buzz" onClick={() => act(() => resolveNoBuzz(room.roomCode, me))}>No buzz — draw new word</button></div>}</div>}
 
-        {(faceOff.status === 'attempt' || faceOff.status === 'steal') && <div className="faceoff-control"><p className="attempt-copy">{faceOff.status === 'steal' ? 'Steal attempt:' : 'First attempt:'} <b>{attempting?.name}</b> spells aloud.</p>{isJudge ? <><div className="secret-answer"><small>Judge only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><div className="faceoff-actions"><button className="correct" onClick={() => act(() => judgeFaceOff(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeFaceOff(room.roomCode, me, false))}><X /> Not quite</button></div></> : <p className="waiting-copy">{judge?.name} has the answer and will rule.</p>}{(isJudge || isHost) && <button className="reset-buzz" onClick={() => act(() => resetFaceOffBuzz(room.roomCode, me))}><RotateCcw size={16} /> Reset false start</button>}</div>}
+        {(faceOff.status === 'attempt' || faceOff.status === 'steal') && word && <div className="faceoff-control"><p className="attempt-copy">{faceOff.status === 'steal' ? 'Steal attempt:' : 'First attempt:'} <b>{attempting?.name}</b> spells aloud.</p>{isJudge ? <><div className="secret-answer"><small>Judge only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><div className="faceoff-actions"><button className="correct" onClick={() => act(() => judgeFaceOff(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeFaceOff(room.roomCode, me, false))}><X /> Not quite</button></div></> : <p className="waiting-copy">{judge?.name} has the answer and will rule.</p>}{mayRecover && <button className="reset-buzz" onClick={() => act(() => resetFaceOffBuzz(room.roomCode, me))}><RotateCcw size={16} /> Correct/reset buzz</button>}</div>}
+
+        {faceOff.status === 'exhausted' && <div className="faceoff-control exhausted-control"><p>No unused words remain in {faceOff.category} at this round’s difficulty.</p>{mayRecover ? <div className="faceoff-actions">{faceOff.categoryOptions.map((category) => <button key={category} onClick={() => act(() => chooseFaceOffReplacementCategory(room.roomCode, me, category))}>{category}</button>)}</div> : <p className="waiting-copy">The judge will choose another category.</p>}</div>}
+
+        {faceOff.status === 'result' && <div className="faceoff-control faceoff-result"><div className="secret-answer"><small>Face-off result</small><b>{word?.word}</b><span>{faceOff.notice}</span></div>{mayRecover ? <div className="faceoff-actions"><button className="undo-button" onClick={() => act(() => undoFaceOffRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo last ruling</button><button className="correct" onClick={() => act(() => continueFaceOffResult(room.roomCode, me))}>Continue →</button></div> : <p className="waiting-copy">Waiting for the judge to continue…</p>}</div>}
+
+        {mayRecover && ['ready', 'open', 'attempt', 'steal'].includes(faceOff.status) && <div className="faceoff-recovery-actions"><button onClick={replaceCurrentWord}><RotateCcw size={16} /> Replace word</button>{faceOff.lastRuling && <button onClick={() => act(() => undoFaceOffRuling(room.roomCode, me))}>Undo last ruling</button>}</div>}
+
+        {isHost && faceOff.status !== 'result' && <details className="faceoff-management"><summary>Change judge or representatives</summary>{['ready', 'exhausted'].includes(faceOff.status) && <div><small>Judge</small>{judgeOptions.map((player) => <button key={player.id} disabled={player.id === faceOff.judgeId} onClick={() => act(() => reassignFaceOffJudge(room.roomCode, me, player.id))}>{player.name}</button>)}</div>}{faceOff.status !== 'exhausted' && representatives.map((representative) => representative && <div key={representative.id}><small>Substitute for {representative.name}</small>{room.players.filter((player) => player.teamId === representative.teamId && player.id !== representative.id).map((player) => <button key={player.id} onClick={() => act(() => substituteFaceOffRepresentative(room.roomCode, me, player.id))}>{player.name}</button>)}</div>)}</details>}
       </section>
     </main>
   )
@@ -513,7 +541,7 @@ function PremiumBankView({ room, act }: { room: SpellingRoom; act: (work: () => 
           </p>
 
           <div className="premium-player-grid">
-            {room.players.filter((p) => p.teamId === controllingTeam.id).map((player) => {
+            {playersInOrder(room.players, room.playerOrder).filter((p) => p.teamId === controllingTeam.id).map((player) => {
               const isUsed = (room.roundUsedPlayerIds ?? []).includes(player.id)
               const isSelected = bank.selectedPlayerId === player.id
               return (
@@ -574,7 +602,18 @@ function CountUpAfterCountdown({ startedAt, countdownSeconds }: { startedAt: num
 function GameHeader({ room, act }: { room: SpellingRoom; act?: (work: () => Promise<void>) => void }) {
   const round = room.faceOff?.round ?? roundForTurn(room.turnIndex, room.playerOrder.length)
   const spellingStartedAt = room.faceOff?.attemptStartedAt ?? room.currentTurn?.spellingStartedAt
-  return <><header className="game-header"><span className="bee-mark">B</span><span>Round {round} / 3</span><b>{ROUND_LABELS[round - 1]}</b>{spellingStartedAt && <div className="spelling-clock"><Clock3 size={16} /><CountUpAfterCountdown startedAt={spellingStartedAt} countdownSeconds={60} /></div>}{gameMode(room) === 'team' && <div className="header-scores">{room.teams.map((team) => <span key={team.id} style={{ borderColor: team.color }}>{team.name} <strong>{team.score}</strong></span>)}</div>}<span>Room {room.roomCode}</span></header>{act && <TemporaryHostControl room={room} act={act} />}</>
+  const me = act ? getSpellingPlayerId() : null
+  const isCurrentSpeller = Boolean(me && room.currentTurn?.playerId === me)
+  const isFaceOffSpeller = Boolean(me && room.faceOff?.attemptPlayerId === me)
+  const isSelectedPremiumSpeller = Boolean(me && !room.currentTurn && room.premiumBank?.selectedPlayerId === me)
+  const turnMessage = isCurrentSpeller
+    ? room.currentTurn?.wordId ? 'Spell your word aloud.' : 'Choose your category to begin.'
+    : isFaceOffSpeller
+      ? 'Spell the face-off word aloud.'
+      : isSelectedPremiumSpeller
+        ? 'Your team selected you for the Premium Bank.'
+        : null
+  return <><header className="game-header"><span className="bee-mark">B</span><span>Round {round} / 3</span><b>{ROUND_LABELS[round - 1]}</b>{spellingStartedAt && <div className="spelling-clock"><Clock3 size={16} /><CountUpAfterCountdown startedAt={spellingStartedAt} countdownSeconds={60} /></div>}{gameMode(room) === 'team' && <div className="header-scores">{room.teams.map((team) => <span key={team.id} style={{ borderColor: team.color }}>{team.name} <strong>{team.score}</strong></span>)}</div>}<span>Room {room.roomCode}</span></header>{act && gameMode(room) === 'team' && <div className="phone-team-scores" aria-label="Team scores">{room.teams.map((team) => <div key={team.id} style={{ '--team-color': team.color } as CSSProperties}><span className="team-dot" /><b>{team.name}</b><strong>{team.score}</strong></div>)}</div>}{turnMessage && <div className="personal-turn-banner"><strong>Your turn</strong><span>{turnMessage}</span></div>}{act && <TemporaryHostControl room={room} act={act} />}</>
 }
 
 function HintPanel({ title, body, open, privateOpen = false }: { title: string; body: string; open: boolean; privateOpen?: boolean }) {
@@ -627,6 +666,10 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
     request('sentence')
     if (isSpeller || isHost) speak(word.sentence.replace('___', word.word))
   }
+  const replaceCurrentTurnWord = () => {
+    if (!window.confirm('Replace this word with no score, miss, strike, or control change?')) return
+    act(() => replaceWord(room.roomCode, me))
+  }
 
   return (
     <main className="spell-shell game-page">
@@ -644,7 +687,8 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
             </div>
           )}
           <p className="eyebrow">{isPremium ? 'Premium Turn' : `Turn ${room.turnIndex + 1}`} · {turn.category}</p>
-          <h1>{isSpeller ? 'Your word is ready.' : <>{player.name} is spelling…</>}</h1>
+          <h1>{isSpeller ? 'Your turn — your word is ready.' : <>{player.name} is spelling…</>}</h1>
+          {turn.notice && !result && <div className="recovery-notice"><RotateCcw size={18} /><span>{turn.notice}</span></div>}
           {maySeeSecret ? (
             <div className="word-card"><small>{word.pronunciation}</small><div className="big-word">{word.word}</div><button onClick={() => speak(word.word)}><Volume2 size={18} /> Play pronunciation</button></div>
           ) : (
@@ -669,10 +713,11 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
           <Scoreboard room={room} compact />
           {activeTeam && !isPremium && <div className="save-meter" style={{ '--team-color': activeTeam.color } as CSSProperties}><span><ShieldCheck size={17} /> Save the Bee</span><b>{savesLeft} of {round} left</b><small>Round {round} · full {round}-point recovery</small></div>}
           {judge && <div className="judge-status"><small>{usesTemporaryJudge ? 'Temporary judge' : 'Judge'}</small><b>{judge.name}</b></div>}
-          {isJudge && !result && <div className="judge-card"><p>{turn.saveActive ? 'Judge the team save' : usesTemporaryJudge ? 'Your ruling' : 'Host ruling'}</p><button className="correct" onClick={() => act(() => judgeTurn(room.roomCode, me, true))}><Check /> {turn.saveActive ? 'Save successful' : 'Correct'}</button><button className="incorrect" onClick={() => act(() => judgeTurn(room.roomCode, me, false))}><X /> Not quite</button>{!turn.saveActive && <button className="skip" onClick={() => act(() => skipWord(room.roomCode, me))}>Skip this word</button>}</div>}
+          {isJudge && !result && <div className="judge-card"><p>{turn.saveActive ? 'Judge the team save' : usesTemporaryJudge ? 'Your ruling' : 'Host ruling'}</p><button className="correct" onClick={() => act(() => judgeTurn(room.roomCode, me, true))}><Check /> {turn.saveActive ? 'Save successful' : 'Correct'}</button><button className="incorrect" onClick={() => act(() => judgeTurn(room.roomCode, me, false))}><X /> Not quite</button>{!turn.saveActive && <button className="skip" onClick={replaceCurrentTurnWord}>Replace word</button>}</div>}
+          {isHost && !isJudge && !result && !turn.saveActive && <button className="skip host-replace-word" onClick={replaceCurrentTurnWord}>Replace word</button>}
         </aside>
       </section>
-      {result && (!saveAvailable || canCallSave || isHost) && <div className={`result-overlay ${result}`}><div>{saveAvailable ? <ShieldCheck className="save-overlay-icon" /> : <span>{result === 'correct' || result === 'saved' ? '✓' : '×'}</span>}{saveAvailable ? <><p className="save-title">{canCallSave ? 'Save the Bee?' : 'Team decision in progress'}</p><h2>{canCallSave ? `${activeTeam?.name} has ${savesLeft} ${savesLeft === 1 ? 'token' : 'tokens'} left. The answer is still hidden.` : `${activeTeam?.name} can choose whether to use a save. The answer remains hidden.`}</h2><div className="result-actions">{canCallSave && <button className="save-button" onClick={() => act(() => activateSaveTheBee(room.roomCode, me))}><ShieldCheck size={18} /> Start private team huddle</button>}{isHost && <button className="undo-button" onClick={() => act(() => declineSaveTheBee(room.roomCode, me))}>Close save window & reveal</button>}</div></> : <><p>{word.word}</p><h2>{isPremium ? (result === 'correct' ? <>CORRECT · +{basePoints} BASE · +{bonusPoints} PREMIUM<br /><small style={{ fontSize: '18px', fontWeight: 600 }}>{activeTeam?.name} keep control · Bank: {room.premiumBank?.remainingPoints ?? 0} pts remaining</small>{room.premiumBank?.remainingPoints === 0 && <div className="bank-empty-alert"><Sparkles size={16} /> PREMIUM BANK CLAIMED · NORMAL RALLY RESUMES</div>}</> : <>NOT QUITE · 0 POINTS<br /><small style={{ fontSize: '18px', fontWeight: 600 }}>Control passes · Bank unchanged: {room.premiumBank?.remainingPoints ?? 0} pts</small></>) : result === 'saved' ? `Saved! Full value: ${round} on the board.` : result === 'correct' ? `That’s ${round} on the board!` : 'Not quite — next word, same energy.'}</h2>{(isJudge || isHost) ? <div className="result-actions">{isJudge && <button className="undo-button" onClick={() => act(() => undoRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo</button>}{isHost && <button className="primary-button" onClick={() => act(() => advanceTurn(room.roomCode, me))}>Next turn →</button>}</div> : <small>Waiting for the host…</small>}</>}</div></div>}
+      {result && (!saveAvailable || canCallSave || isHost) && <div className={`result-overlay ${result}`}><div>{saveAvailable ? <ShieldCheck className="save-overlay-icon" /> : <span>{result === 'correct' || result === 'saved' ? '✓' : '×'}</span>}{saveAvailable ? <><p className="save-title">{canCallSave ? 'Save the Bee?' : 'Team decision in progress'}</p><h2>{canCallSave ? `${activeTeam?.name} has ${savesLeft} ${savesLeft === 1 ? 'token' : 'tokens'} left. The answer is still hidden.` : `${activeTeam?.name} can choose whether to use a save. The answer remains hidden.`}</h2><div className="result-actions">{canCallSave && <button className="save-button" onClick={() => act(() => activateSaveTheBee(room.roomCode, me))}><ShieldCheck size={18} /> Start private team huddle</button>}{isHost && <button className="undo-button" onClick={() => act(() => declineSaveTheBee(room.roomCode, me))}>Close save window & reveal</button>}</div></> : <><p>{word.word}</p><h2>{isPremium ? (result === 'correct' ? <>CORRECT · +{basePoints} BASE · +{bonusPoints} PREMIUM<br /><small style={{ fontSize: '18px', fontWeight: 600 }}>{activeTeam?.name} keep control · Bank: {room.premiumBank?.remainingPoints ?? 0} pts remaining</small>{room.premiumBank?.remainingPoints === 0 && <div className="bank-empty-alert"><Sparkles size={16} /> PREMIUM BANK CLAIMED · NORMAL RALLY RESUMES</div>}</> : <>NOT QUITE · 0 POINTS<br /><small style={{ fontSize: '18px', fontWeight: 600 }}>Control passes · Bank unchanged: {room.premiumBank?.remainingPoints ?? 0} pts</small></>) : result === 'saved' ? `Saved! Full value: ${round} on the board.` : result === 'correct' ? `That’s ${round} on the board!` : 'Not quite — next word, same energy.'}</h2>{(isJudge || isHost) ? <div className="result-actions"><button className="undo-button" onClick={() => act(() => undoRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo</button>{isHost && <button className="primary-button" onClick={() => act(() => advanceTurn(room.roomCode, me))}>Next turn →</button>}</div> : <small>Waiting for the host…</small>}</>}</div></div>}
       {saveAvailable && !canCallSave && !isHost && <div className="save-decision-status"><ShieldCheck size={18} /><span>{activeTeam?.name} are deciding whether to call Save the Bee.</span></div>}
     </main>
   )
@@ -712,11 +757,11 @@ function PresentationView({ room }: { room: SpellingRoom }) {
     const bonus = room.bonusGame
     const team = room.teams.find((item) => item.id === bonus.activeTeamId)
     const player = room.players.find((item) => item.id === bonus.activePlayerId)
-    return <main className="spell-shell presentation-page presentation-live"><span className="bee-mark">B</span><p className="eyebrow">{bonus.kind === 'relay' ? 'Spelling Relay finale' : 'Full Feud · Party Rules'}</p><h1>{bonus.phase === 'steal' ? `${team?.name}, steal the board.` : `${player?.name}, you’re up.`}</h1><Scoreboard room={room} />{bonus.kind === 'feud' ? <div className="presentation-bank-card" style={{ '--team-color': team?.color } as CSSProperties}><b>{Math.min(bonus.wordIndex, 3)} / 3 cleared</b><p>{bonus.strikes} of 2 strikes · {bonus.boardValue} points remain</p></div> : <div className="presentation-bank-card" style={{ '--team-color': team?.color } as CSSProperties}><b>One letter each</b><p>No backtracking. Keep the rhythm moving.</p></div>}</main>
+    return <main className="spell-shell presentation-page presentation-live"><span className="bee-mark">B</span><p className="eyebrow">{bonus.kind === 'relay' ? 'Spelling Relay finale' : 'Full Feud · Party Rules'}</p><h1>{bonus.phase === 'steal' ? `${team?.name}, steal the board.` : `${player?.name}, you’re up.`}</h1>{bonus.notice && <div className="recovery-notice"><RotateCcw size={18} /><span>{bonus.notice}</span></div>}<Scoreboard room={room} />{bonus.kind === 'feud' ? <div className="presentation-bank-card" style={{ '--team-color': team?.color } as CSSProperties}><b>{Math.min(bonus.wordIndex, 3)} / 3 cleared</b><p>{bonus.strikes} of 2 strikes · {bonus.boardValue} points remain</p></div> : <div className="presentation-bank-card" style={{ '--team-color': team?.color } as CSSProperties}><b>One letter each</b><p>No backtracking. Keep the rhythm moving.</p></div>}</main>
   }
   if (room.faceOff) {
     const faceOff = room.faceOff
-    const word = getWord(faceOff.wordId)!
+    const word = faceOff.wordId ? getWord(faceOff.wordId) : null
     const representatives = faceOff.representativeIds.map((id) => room.players.find((player) => player.id === id)).filter(Boolean)
     const attempting = room.players.find((player) => player.id === faceOff.attemptPlayerId)
     const isTiebreak = faceOff.kind === 'tiebreak'
@@ -726,7 +771,8 @@ function PresentationView({ room }: { room: SpellingRoom }) {
       <main className="spell-shell presentation-page presentation-live">
         <GameHeader room={room} />
         <p className="eyebrow"><Zap size={15} /> {isTiebreak ? 'Sudden death' : `Round ${faceOff.round} face-off`} · {faceOff.category}</p>
-        <h1>{faceOff.status === 'ready' ? 'Representatives, step up.' : faceOff.status === 'open' ? 'Buzzers are live.' : `${attempting?.name} is spelling.`}</h1>
+        <h1>{faceOff.status === 'result' ? `${room.players.find((player) => player.id === faceOff.winnerPlayerId)?.name} wins the face-off.` : faceOff.status === 'exhausted' ? 'A new category is needed.' : faceOff.status === 'ready' ? 'Representatives, step up.' : faceOff.status === 'open' ? 'Buzzers are live.' : `${attempting?.name} is spelling.`}</h1>
+        {faceOff.notice && <div className="recovery-notice"><RotateCcw size={18} /><span>{faceOff.notice}</span></div>}
         {!isTiebreak && (
           <div className="faceoff-value-tag" style={{ margin: '0 auto 20px' }}>
             FACE-OFF: {pts} POINTS · THEN {bankPts} PREMIUM POINTS UP FOR GRABS
@@ -741,7 +787,7 @@ function PresentationView({ room }: { room: SpellingRoom }) {
             </div>
           ))}
         </div>
-        {faceOff.status === 'ready' && <button className="presentation-audio" onClick={() => speak(word.word)}><Volume2 /> Play face-off word</button>}
+        {faceOff.status === 'ready' && word && <button className="presentation-audio" onClick={() => speak(word.word)}><Volume2 /> Play face-off word</button>}
         {faceOff.status === 'open' && <div className="presentation-buzzer"><BellRing /><b>BUZZ</b></div>}
         <Scoreboard room={room} />
       </main>
@@ -823,6 +869,7 @@ function PresentationView({ room }: { room: SpellingRoom }) {
               ? `${player?.name} is spelling for ${totalWorth} points!`
               : `${player?.name} is spelling…`}
       </h1>
+      {turn.notice && <div className="recovery-notice"><RotateCcw size={18} /><span>{turn.notice}</span></div>}
       {isPremiumTurn && (
         <div className="faceoff-value-tag" style={{ margin: '0 auto 16px' }}>
           PREMIUM CHALLENGE · {turn.basePoints} BASE + {turn.bonusPoints} BONUS · BANK: {room.premiumBank?.remainingPoints ?? 0} PTS LEFT
@@ -873,15 +920,21 @@ function BonusGameView({ room, act }: { room: SpellingRoom; act: (work: () => Pr
   const player = room.players.find((item) => item.id === bonus.activePlayerId)
   const word = getWord(bonus.wordIds[bonus.wordIndex])!
   const isRelay = bonus.kind === 'relay'
+  const replaceCurrentBonusWord = () => {
+    if (!window.confirm('Void this word and restart with the same team, player, score, and board position?')) return
+    act(() => replaceBonusWord(room.roomCode, me))
+  }
   return <main className="spell-shell bonus-game-page" style={{ '--team-color': team.color } as CSSProperties}>
     <TemporaryHostControl room={room} act={act} />
+    {player?.id === me && <div className="personal-turn-banner"><strong>Your turn</strong><span>{isRelay ? 'Start your team’s relay.' : 'Spell the current word aloud.'}</span></div>}
     <p className="eyebrow">{isRelay ? <Zap size={15} /> : <Crown size={15} />} {isRelay ? 'Spelling Relay finale' : 'Full Feud · Party Rules'}</p>
     <h1>{bonus.phase === 'steal' ? `${team.name}, steal the board.` : `${team.name}, take the floor.`}</h1>
+    {bonus.notice && <div className="recovery-notice"><RotateCcw size={18} /><span>{bonus.notice}</span></div>}
     <Scoreboard room={room} />
     {!isRelay && <div className="bonus-board"><b>{Math.min(bonus.wordIndex, 3)} / 3 words cleared</b><span>{'✕'.repeat(bonus.strikes)}{'○'.repeat(Math.max(0, 2 - bonus.strikes))}</span><small>{bonus.boardValue} points on the board</small></div>}
     {isRelay && <div className="relay-rules"><b>One letter per teammate.</b><span>Rotate down the line. No backtracking. The host judges the complete word.</span></div>}
-    <section className="bonus-stage"><small>{bonus.category} · {team.name}</small><h2>{player?.name}{isRelay ? ' starts the relay' : ' spells now'}</h2><p>{isRelay ? 'Say one letter, then pass immediately to the next teammate.' : bonus.phase === 'steal' ? 'Huddle, then spell the final steal word for every point left.' : 'Teammates rotate after every word. Two misses open one steal.'}</p>
-      {hasHostControl(room, me) ? <><div className="secret-answer"><small>Host only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><button className="presentation-audio" onClick={() => speak(word.word)}><Volume2 /> Play word</button><div className="faceoff-actions"><button className="correct" onClick={() => act(() => judgeBonusGame(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeBonusGame(room.roomCode, me, false))}><X /> Not quite</button></div></> : <div className="waiting-copy">The host has the answer and will rule.</div>}
+    <section className="bonus-stage"><small>{bonus.category} · {team.name}</small><h2>{player?.id === me ? 'Your turn' : player?.name}{isRelay ? ' — start the relay' : ' — spell now'}</h2><p>{isRelay ? 'Say one letter, then pass immediately to the next teammate.' : bonus.phase === 'steal' ? 'Huddle, then spell the final steal word for every point left.' : 'Teammates rotate after every word. Two misses open one steal.'}</p>
+      {hasHostControl(room, me) ? <><div className="secret-answer"><small>Host only</small><b>{word.word}</b><span>{word.pronunciation}</span></div><button className="presentation-audio" onClick={() => speak(word.word)}><Volume2 /> Play word</button><div className="faceoff-actions"><button className="correct" onClick={() => act(() => judgeBonusGame(room.roomCode, me, true))}><Check /> Correct</button><button className="incorrect" onClick={() => act(() => judgeBonusGame(room.roomCode, me, false))}><X /> Not quite</button><button onClick={replaceCurrentBonusWord}>Replace word</button></div></> : <div className="waiting-copy">The host has the answer and will rule.</div>}
     </section>
   </main>
 }

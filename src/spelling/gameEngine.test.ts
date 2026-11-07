@@ -17,8 +17,10 @@ import {
   nextRallyPlayerId,
   nextTeamPlayer,
   nextTurn,
+  playersInOrder,
   pointsForRound,
   premiumChunkPoints,
+  randomizedPlayerOrder,
   remainingSaveTokens,
   roundForTurn,
   saveTokensForRound,
@@ -127,8 +129,8 @@ describe('spelling game engine', () => {
       revision: 2,
     } as SpellingRoom
 
-    expect(nextTurn(room).currentTurn?.playerId).toBe('host')
-    expect(nextTurn(room).currentTurn?.judgeId).toBe('player')
+    expect(nextTurn(room, () => 0.999).currentTurn?.playerId).toBe('host')
+    expect(nextTurn(room, () => 0.999).currentTurn?.judgeId).toBe('player')
   })
 
   it('transfers host authority and judging to a temporary host', () => {
@@ -174,6 +176,50 @@ describe('spelling game engine', () => {
       .toEqual(['honey', 'blue', 'honey', 'blue', 'honey'])
     expect(alternatingTeamOrder(assigned, 'blue').map((id) => assigned.find((player) => player.id === id)?.teamId))
       .toEqual(['blue', 'honey', 'blue', 'honey', 'honey'])
+  })
+
+  it('randomizes classic order instead of privileging the host or join order', () => {
+    const players: Player[] = Array.from({ length: 4 }, (_, index) => ({
+      id: index === 0 ? 'host' : `player-${index + 1}`,
+      name: `Player ${index + 1}`,
+      score: 0,
+      turns: 0,
+    }))
+
+    const order = randomizedPlayerOrder(players, 'classic', () => 0)
+    expect(order).toEqual(['player-2', 'player-3', 'player-4', 'host'])
+    expect(new Set(order)).toEqual(new Set(players.map((player) => player.id)))
+  })
+
+  it('randomizes team queues and which team spells first while preserving alternation', () => {
+    const players: Player[] = [
+      { id: 'h1', name: 'H1', score: 0, turns: 0, teamId: 'honey' },
+      { id: 'b1', name: 'B1', score: 0, turns: 0, teamId: 'blue' },
+      { id: 'h2', name: 'H2', score: 0, turns: 0, teamId: 'honey' },
+      { id: 'b2', name: 'B2', score: 0, turns: 0, teamId: 'blue' },
+    ]
+    const order = randomizedPlayerOrder(players, 'team', () => 0.999)
+    const teams = order.map((id) => players.find((player) => player.id === id)?.teamId)
+
+    expect(teams).toEqual(['blue', 'honey', 'blue', 'honey'])
+    expect(playersInOrder(players, order).map((player) => player.id)).toEqual(order)
+  })
+
+  it('reshuffles classic players at every round boundary', () => {
+    const room = {
+      hostId: 'host',
+      players: [
+        { id: 'host', name: 'Host', score: 0, turns: 0 },
+        { id: 'later', name: 'Later joiner', score: 0, turns: 0 },
+      ],
+      playerOrder: ['host', 'later'],
+      turnIndex: 1,
+      revision: 2,
+    } as SpellingRoom
+
+    const next = nextTurn(room, () => 0)
+    expect(next.playerOrder).toEqual(['later', 'host'])
+    expect(next.currentTurn?.playerId).toBe('later')
   })
 
   it('gives team members ownership of their name with host fallback', () => {
