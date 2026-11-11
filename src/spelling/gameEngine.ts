@@ -148,6 +148,22 @@ export function premiumChunkPoints(round: number): number {
   return pointsForRound(round)
 }
 
+export function premiumParticipationAfterRuling(
+  roundUsedPlayerIds: string[],
+  attemptedPlayerIds: string[],
+  playerId: string,
+  correct: boolean,
+): { roundUsedPlayerIds: string[]; attemptedPlayerIds: string[] } {
+  return {
+    roundUsedPlayerIds: correct && !roundUsedPlayerIds.includes(playerId)
+      ? [...roundUsedPlayerIds, playerId]
+      : roundUsedPlayerIds,
+    attemptedPlayerIds: attemptedPlayerIds.includes(playerId)
+      ? attemptedPlayerIds
+      : [...attemptedPlayerIds, playerId],
+  }
+}
+
 export function bonusGameValue(kind: BonusGameKind): number {
   return kind === 'feud' ? 3 : 2
 }
@@ -158,11 +174,11 @@ export function nextTeamPlayer(players: Player[], teamId: TeamId, index: number)
 }
 
 export function eligiblePremiumPlayers(
-  room: Pick<SpellingRoom, 'players' | 'roundUsedPlayerIds'>,
+  room: { players: Player[]; premiumBank: { attemptedPlayerIds: string[] } | null },
   teamId: TeamId,
 ): Player[] {
-  const used = room.roundUsedPlayerIds ?? []
-  return room.players.filter((player) => player.teamId === teamId && !used.includes(player.id))
+  const attempted = room.premiumBank?.attemptedPlayerIds ?? []
+  return room.players.filter((player) => player.teamId === teamId && !attempted.includes(player.id))
 }
 
 export function nextRallyPlayerId(

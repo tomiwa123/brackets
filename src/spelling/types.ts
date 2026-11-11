@@ -88,6 +88,7 @@ export interface PremiumBank {
   remainingPoints: number
   controllingTeamId: TeamId
   carriedCategory: Category
+  attemptedPlayerIds: string[]
   selectedPlayerId?: string | null
 }
 

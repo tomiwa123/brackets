@@ -21,6 +21,7 @@ import {
   nextTurn,
   playersInOrder,
   pointsForRound,
+  premiumParticipationAfterRuling,
   premiumChunkPoints,
   randomizedPlayerOrder,
   rankedTeams,
@@ -142,7 +143,9 @@ function normalizeRoom(room: SpellingRoom): SpellingRoom {
     faceOff: room.faceOff ?? null,
     faceOffHistory: room.faceOffHistory ?? [],
     faceOffRotationOffset: room.faceOffRotationOffset ?? 0,
-    premiumBank: room.premiumBank ?? null,
+    premiumBank: room.premiumBank
+      ? { ...room.premiumBank, attemptedPlayerIds: room.premiumBank.attemptedPlayerIds ?? [] }
+      : null,
     roundUsedPlayerIds: room.roundUsedPlayerIds ?? [],
     openingCategory: room.openingCategory ?? null,
     bonusGame: room.bonusGame ?? null,
@@ -595,7 +598,7 @@ export async function selectPremiumPlayer(code: string, actorId: string, playerI
     if (!hasHostControl(room, actorId) && !isControllingMember) throw new Error('TEAM_ONLY')
     const targetPlayer = room.players.find((player) => player.id === playerId)
     if (!targetPlayer || targetPlayer.teamId !== bank.controllingTeamId) throw new Error('INVALID_PLAYER')
-    if ((room.roundUsedPlayerIds ?? []).includes(playerId)) throw new Error('PLAYER_ALREADY_USED')
+    if ((bank.attemptedPlayerIds ?? []).includes(playerId)) throw new Error('PLAYER_ALREADY_ATTEMPTED_PREMIUM')
     return {
       ...room,
       premiumBank: { ...bank, selectedPlayerId: playerId },
@@ -613,7 +616,7 @@ export async function confirmPremiumTurn(code: string, actorId: string): Promise
     const isSelectedPlayer = actorId === selectedPlayerId
     const isControllingMember = actor?.teamId === bank.controllingTeamId
     if (!hasHostControl(room, actorId) && !isSelectedPlayer && !isControllingMember) throw new Error('TEAM_ONLY')
-    if ((room.roundUsedPlayerIds ?? []).includes(selectedPlayerId)) throw new Error('PLAYER_ALREADY_USED')
+    if ((bank.attemptedPlayerIds ?? []).includes(selectedPlayerId)) throw new Error('PLAYER_ALREADY_ATTEMPTED_PREMIUM')
 
     const difficulty = difficultyForRound(bank.round)
     const word = drawWord(WORD_BANK, bank.carriedCategory, difficulty, room.usedWordIds, { mode: 'team', premiumOnly: true })
@@ -713,18 +716,22 @@ export async function judgeTurn(code: string, actorId: string, correct: boolean)
       const nextRemaining = correct ? Math.max(0, bank.remainingPoints - bonusPoints) : bank.remainingPoints
       const otherTeamId: TeamId = bank.controllingTeamId === 'honey' ? 'blue' : 'honey'
       const nextControllingTeamId: TeamId = correct ? bank.controllingTeamId : otherTeamId
-      const nextRoundUsed = (room.roundUsedPlayerIds ?? []).includes(turn.playerId)
-        ? room.roundUsedPlayerIds
-        : [...(room.roundUsedPlayerIds ?? []), turn.playerId]
+      const participation = premiumParticipationAfterRuling(
+        room.roundUsedPlayerIds ?? [],
+        bank.attemptedPlayerIds ?? [],
+        turn.playerId,
+        correct,
+      )
 
       return {
         ...room,
         currentTurn: { ...turn, ruling: correct ? 'correct' : 'incorrect' },
-        roundUsedPlayerIds: nextRoundUsed,
+        roundUsedPlayerIds: participation.roundUsedPlayerIds,
         premiumBank: {
           ...bank,
           remainingPoints: nextRemaining,
           controllingTeamId: nextControllingTeamId,
+          attemptedPlayerIds: participation.attemptedPlayerIds,
         },
         players: room.players.map((player) => player.id === turn.playerId
           ? { ...player, score: player.score + points, turns: player.turns + 1 }
@@ -833,6 +840,7 @@ export async function undoRuling(code: string, actorId: string): Promise<void> {
         ...nextBank,
         remainingPoints: nextBank.remainingPoints + bonusToRestore,
         controllingTeamId: prevControlling,
+        attemptedPlayerIds: (nextBank.attemptedPlayerIds ?? []).filter((id) => id !== record.playerId),
       }
     }
     return {
@@ -915,12 +923,17 @@ export async function advanceTurn(code: string, actorId: string): Promise<void> 
       const bankEmpty = bank.remainingPoints <= 0
       const noEligiblePlayers = honeyEligible.length === 0 && blueEligible.length === 0
 
-      // If bank is empty or neither team has players left, premium phase ends!
+      // The bank ends when it is claimed or every player has had one premium attempt.
       if (bankEmpty || noEligiblePlayers) {
         const nextRallyId = nextRallyPlayerId(room)
         if (nextRallyId) {
           // Rally begins!
-          const turn = makeTurn(nextRallyId, room.revision + 1, judgeIdForPlayer(room, nextRallyId))
+          const turn = {
+            ...makeTurn(nextRallyId, room.revision + 1, judgeIdForPlayer(room, nextRallyId)),
+            ...(noEligiblePlayers && !bankEmpty
+              ? { notice: `Everyone has attempted premium. ${bank.remainingPoints} unclaimed bank ${bank.remainingPoints === 1 ? 'point expires' : 'points expire'}; normal rally resumes.` }
+              : {}),
+          }
           return {
             ...room,
             premiumBank: null,

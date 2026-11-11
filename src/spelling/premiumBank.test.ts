@@ -8,6 +8,7 @@ import {
   nextRallyPlayerId,
   pointsForRound,
   premiumChunkPoints,
+  premiumParticipationAfterRuling,
   startingPremiumBank,
 } from './gameEngine'
 import type { Player, TeamId } from './types'
@@ -94,24 +95,37 @@ describe('Premium Bank Rules and Automated Validation', () => {
     expect(bankRemaining).toBe(4) // unchanged
   })
 
-  it('guarantees no player takes two round responses and rally skips used players', () => {
+  it('separates one-shot premium attempts from normal-turn usage', () => {
     const players = createTestPlayers(8) // 4 honey, 4 blue
     const playerOrder = alternatingTeamOrder(players, 'honey')
-    const roundUsedPlayerIds: string[] = []
+    let roundUsedPlayerIds: string[] = []
+    let attemptedPlayerIds: string[] = []
 
-    // Premium phase consumes p1 (honey) and p2 (blue)
-    roundUsedPlayerIds.push('p1')
-    roundUsedPlayerIds.push('p2')
+    // P1 is correct: premium attempt used and normal turn consumed.
+    const correctParticipation = premiumParticipationAfterRuling(
+      roundUsedPlayerIds, attemptedPlayerIds, 'p1', true,
+    )
+    roundUsedPlayerIds = correctParticipation.roundUsedPlayerIds
+    attemptedPlayerIds = correctParticipation.attemptedPlayerIds
+    // P2 misses: premium attempt used, but normal turn is refunded.
+    const missedParticipation = premiumParticipationAfterRuling(
+      roundUsedPlayerIds, attemptedPlayerIds, 'p2', false,
+    )
+    roundUsedPlayerIds = missedParticipation.roundUsedPlayerIds
+    attemptedPlayerIds = missedParticipation.attemptedPlayerIds
+    expect(roundUsedPlayerIds).toEqual(['p1'])
+    expect(attemptedPlayerIds).toEqual(['p1', 'p2'])
 
-    // Eligible premium players only contains unused teammates
-    expect(eligiblePremiumPlayers({ players, roundUsedPlayerIds }, 'honey').map((p) => p.id))
+    // Neither player can attempt premium again, regardless of outcome.
+    const premiumBank = { attemptedPlayerIds }
+    expect(eligiblePremiumPlayers({ players, premiumBank }, 'honey').map((p) => p.id))
       .toEqual(['p3', 'p5', 'p7'])
-    expect(eligiblePremiumPlayers({ players, roundUsedPlayerIds }, 'blue').map((p) => p.id))
+    expect(eligiblePremiumPlayers({ players, premiumBank }, 'blue').map((p) => p.id))
       .toEqual(['p4', 'p6', 'p8'])
 
-    // Ordinary rally skips p1 and p2 and picks p3 next
+    // Ordinary rally skips correct P1, but returns missed P2 to the lineup.
     const firstRally = nextRallyPlayerId({ playerOrder, roundUsedPlayerIds })
-    expect(firstRally).toBe('p3')
+    expect(firstRally).toBe('p2')
 
     // Simulate remaining rally players
     const rallySpellers: string[] = []
@@ -122,10 +136,22 @@ describe('Premium Bank Rules and Automated Validation', () => {
       next = nextRallyPlayerId({ playerOrder, roundUsedPlayerIds })
     }
 
-    expect(rallySpellers).toEqual(['p3', 'p4', 'p5', 'p6', 'p7', 'p8'])
-    // Every player in the room was used exactly once
+    expect(rallySpellers).toEqual(['p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'])
+    // Every player ultimately receives exactly one normal-turn opportunity.
     expect(roundUsedPlayerIds).toHaveLength(8)
     expect(new Set(roundUsedPlayerIds).size).toBe(8)
+  })
+
+  it('ends premium after every player attempts, while refunding all misses to the rally', () => {
+    const players = createTestPlayers(4)
+    const premiumBank = { attemptedPlayerIds: players.map((player) => player.id) }
+
+    expect(eligiblePremiumPlayers({ players, premiumBank }, 'honey')).toEqual([])
+    expect(eligiblePremiumPlayers({ players, premiumBank }, 'blue')).toEqual([])
+    expect(nextRallyPlayerId({
+      playerOrder: players.map((player) => player.id),
+      roundUsedPlayerIds: [],
+    })).toBe('p1')
   })
 
   it('draws only hard-band within-tier words during premium phase without tier jumping', () => {
@@ -151,7 +177,7 @@ describe('Phase 5 — Playthrough Scripted Simulations', () => {
     const players = createTestPlayers(10) // 5 per team
     const playerOrder = alternatingTeamOrder(players, 'honey')
     let honeyScore = 0
-    let blueScore = 0
+    const blueScore = 0
     const roundUsed: string[] = []
 
     // 1. Honey wins face-off: 3 points in Round 2
@@ -163,7 +189,7 @@ describe('Phase 5 — Playthrough Scripted Simulations', () => {
     expect(bank).toBe(6)
 
     // Honey spells 3 consecutive correct premium words (each claims 2 pts, scores 2 base + 2 bonus = 4 pts)
-    const honeyEligible = eligiblePremiumPlayers({ players, roundUsedPlayerIds: roundUsed }, 'honey')
+    const honeyEligible = eligiblePremiumPlayers({ players, premiumBank: { attemptedPlayerIds: roundUsed } }, 'honey')
     for (let i = 0; i < 3; i++) {
       const speller = honeyEligible[i]
       roundUsed.push(speller.id)
@@ -185,20 +211,22 @@ describe('Phase 5 — Playthrough Scripted Simulations', () => {
     let controllingTeam: TeamId = 'honey'
     let bank = startingPremiumBank(1, 8) // 3 points in Round 1
     const roundUsed: string[] = []
+    const premiumAttempted: string[] = []
     let honeyScore = 0
     let blueScore = 0
 
     // Honey misses
-    roundUsed.push('p1')
+    premiumAttempted.push('p1')
     controllingTeam = 'blue'
     expect(bank).toBe(3) // unchanged
 
     // Blue misses
-    roundUsed.push('p2')
+    premiumAttempted.push('p2')
     controllingTeam = 'honey'
     expect(bank).toBe(3) // unchanged
 
     // Honey correct: 1 base + 1 bonus = 2 pts, bank 3 -> 2
+    premiumAttempted.push('p3')
     roundUsed.push('p3')
     honeyScore += 2
     bank -= 1
@@ -206,23 +234,27 @@ describe('Phase 5 — Playthrough Scripted Simulations', () => {
     expect(bank).toBe(2)
 
     // Honey correct: 2 pts, bank 2 -> 1
+    premiumAttempted.push('p5')
     roundUsed.push('p5')
     honeyScore += 2
     bank -= 1
     expect(bank).toBe(1)
 
     // Honey misses
-    roundUsed.push('p7')
+    premiumAttempted.push('p7')
     controllingTeam = 'blue'
     expect(bank).toBe(1) // unchanged
 
     // Blue correct: 2 pts, bank 1 -> 0 (emptied!)
+    premiumAttempted.push('p4')
     roundUsed.push('p4')
     blueScore += 2
     bank -= 1
     expect(bank).toBe(0)
 
-    expect(roundUsed).toEqual(['p1', 'p2', 'p3', 'p5', 'p7', 'p4'])
+    expect(premiumAttempted).toEqual(['p1', 'p2', 'p3', 'p5', 'p7', 'p4'])
+    expect(roundUsed).toEqual(['p3', 'p5', 'p4'])
+    expect(nextRallyPlayerId({ playerOrder: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'], roundUsedPlayerIds: roundUsed })).toBe('p1')
     expect(honeyScore).toBe(4)
     expect(blueScore).toBe(2)
   })
@@ -241,15 +273,17 @@ describe('Phase 5 — Playthrough Scripted Simulations', () => {
     let controllingTeam: TeamId = 'blue'
     expect(controllingTeam).toBe('blue')
     const roundUsed: string[] = []
+    const premiumAttempted: string[] = []
 
     // Blue first speller misses: control passes to Honey!
-    roundUsed.push('p2')
+    premiumAttempted.push('p2')
     controllingTeam = 'honey'
     expect(bank).toBe(6)
 
     // Honey mounts a comeback: 3 correct answers to sweep the bank!
     const honeyPlayers = ['p1', 'p3', 'p5']
     for (const id of honeyPlayers) {
+      premiumAttempted.push(id)
       roundUsed.push(id)
       honeyScore += pointsForRound(2) + premiumChunkPoints(2) // 4 pts
       bank -= premiumChunkPoints(2)
@@ -258,32 +292,38 @@ describe('Phase 5 — Playthrough Scripted Simulations', () => {
     expect(bank).toBe(0)
     expect(honeyScore).toBe(12)
     expect(blueScore).toBe(3)
+    expect(roundUsed).toEqual(honeyPlayers)
+    expect(premiumAttempted).toEqual(['p2', ...honeyPlayers])
   })
 
   it('Simulation 4: bank depletion on the final available player in compact room', () => {
     // 4 players (2 per team: p1, p3 on Honey; p2, p4 on Blue)
     const players = createTestPlayers(4)
     const roundUsed: string[] = []
+    const premiumAttempted: string[] = []
     let bank = startingPremiumBank(1, 4) // 2 points in compact room!
     expect(bank).toBe(2)
 
     // Honey p1 correct: bank becomes 1
+    premiumAttempted.push('p1')
     roundUsed.push('p1')
     bank -= 1
     expect(bank).toBe(1)
 
     // Honey p3 misses: control passes to Blue
-    roundUsed.push('p3')
+    premiumAttempted.push('p3')
     expect(bank).toBe(1)
 
     // Blue p2 correct: bank becomes 0!
+    premiumAttempted.push('p2')
     roundUsed.push('p2')
     bank -= 1
     expect(bank).toBe(0)
 
-    // Only 1 player left for ordinary rally: p4
+    // Missed p3 returns alongside unused p4 for the ordinary rally.
     const remaining = players.filter((p) => !roundUsed.includes(p.id))
-    expect(remaining.map((p) => p.id)).toEqual(['p4'])
+    expect(remaining.map((p) => p.id)).toEqual(['p3', 'p4'])
+    expect(premiumAttempted).toEqual(['p1', 'p3', 'p2'])
   })
 
   it('Simulation 5: ten-player vs compact 4-player room comparison', () => {

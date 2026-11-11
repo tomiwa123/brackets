@@ -223,6 +223,7 @@ export function applyFaceOffRulingState(
       remainingPoints: startingPremiumBank(faceOff.round, room.players.length),
       controllingTeamId: winnerTeamId,
       carriedCategory: faceOff.category,
+      attemptedPlayerIds: [],
       selectedPlayerId: null,
     } : room.premiumBank
     return {

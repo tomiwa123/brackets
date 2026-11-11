@@ -318,9 +318,9 @@ describe('spelling game engine', () => {
     ]
     const playerOrder = ['h1', 'b1', 'h2', 'b2']
 
-    expect(eligiblePremiumPlayers({ players, roundUsedPlayerIds: [] }, 'honey').map((p) => p.id)).toEqual(['h1', 'h2'])
-    expect(eligiblePremiumPlayers({ players, roundUsedPlayerIds: ['h1'] }, 'honey').map((p) => p.id)).toEqual(['h2'])
-    expect(eligiblePremiumPlayers({ players, roundUsedPlayerIds: ['h1', 'h2'] }, 'honey')).toEqual([])
+    expect(eligiblePremiumPlayers({ players, premiumBank: { attemptedPlayerIds: [] } }, 'honey').map((p) => p.id)).toEqual(['h1', 'h2'])
+    expect(eligiblePremiumPlayers({ players, premiumBank: { attemptedPlayerIds: ['h1'] } }, 'honey').map((p) => p.id)).toEqual(['h2'])
+    expect(eligiblePremiumPlayers({ players, premiumBank: { attemptedPlayerIds: ['h1', 'h2'] } }, 'honey')).toEqual([])
 
     // In ordinary rally, skips used players
     expect(nextRallyPlayerId({ playerOrder, roundUsedPlayerIds: ['h1'] })).toBe('b1')

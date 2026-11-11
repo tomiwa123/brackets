@@ -375,8 +375,8 @@ function Lobby({ room, act }: { room: SpellingRoom; act: (work: () => Promise<vo
                 </div>
                 <div className="instruction-card">
                   <span className="inst-num">04</span>
-                  <b>Fair Finish</b>
-                  <p>Premium attempts use player turns; once the bank is empty, all unused players finish the normal rally.</p>
+                  <b>Miss Refund</b>
+                  <p>Each player gets one premium try. A correct answer uses their normal turn; a miss returns them to the rally.</p>
                 </div>
               </div>
             </div>
@@ -520,7 +520,7 @@ function PremiumBankView({ room, act }: { room: SpellingRoom; act: (work: () => 
             <strong>{bank.remainingPoints} <small>of {bank.startPoints} pts left</small></strong>
           </div>
           <p className="bank-meter-copy">
-            Each correct word claims {chunkPts} pt{chunkPts === 1 ? '' : 's'} from the bank and awards <b>{totalAward} total points</b> ({bank.round} base + {chunkPts} bonus). Misses award 0 and transfer control.
+            Each correct word claims {chunkPts} pt{chunkPts === 1 ? '' : 's'} from the bank and awards <b>{totalAward} total points</b> ({bank.round} base + {chunkPts} bonus). Misses award 0, transfer control, and refund the speller’s normal rally turn.
           </p>
         </div>
 
@@ -536,23 +536,24 @@ function PremiumBankView({ room, act }: { room: SpellingRoom; act: (work: () => 
           <h3>Choose who spells next for {controllingTeam.name}</h3>
           <p className="roster-help">
             {maySelect
-              ? 'Select an unused teammate to take this premium turn.'
+              ? 'Select a teammate who has not attempted premium this round.'
               : `${controllingTeam.name} are choosing their speller…`}
           </p>
 
           <div className="premium-player-grid">
             {playersInOrder(room.players, room.playerOrder).filter((p) => p.teamId === controllingTeam.id).map((player) => {
-              const isUsed = (room.roundUsedPlayerIds ?? []).includes(player.id)
+              const hasAttempted = (bank.attemptedPlayerIds ?? []).includes(player.id)
+              const normalTurnUsed = (room.roundUsedPlayerIds ?? []).includes(player.id)
               const isSelected = bank.selectedPlayerId === player.id
               return (
                 <button
                   key={player.id}
-                  disabled={!maySelect || isUsed}
-                  className={`premium-player-card ${isSelected ? 'selected' : ''} ${isUsed ? 'used' : ''}`}
+                  disabled={!maySelect || hasAttempted}
+                  className={`premium-player-card ${isSelected ? 'selected' : ''} ${hasAttempted ? 'used' : ''}`}
                   onClick={() => act(() => selectPremiumPlayer(room.roomCode, me, player.id))}
                 >
                   <b>{player.name}</b>
-                  <span>{isUsed ? 'Used this round' : isSelected ? 'Selected' : 'Eligible'}</span>
+                  <span>{hasAttempted ? (normalTurnUsed ? 'Correct · turn used' : 'Missed · rally turn refunded') : isSelected ? 'Selected' : 'Eligible'}</span>
                 </button>
               )
             })}
@@ -560,7 +561,7 @@ function PremiumBankView({ room, act }: { room: SpellingRoom; act: (work: () => 
 
           {selectedPlayer && (
             <div className="premium-confirm-box">
-              <p><b>{selectedPlayer.name}</b> will receive a harder Round {bank.round} word in <b>{bank.carriedCategory}</b>.</p>
+              <p><b>{selectedPlayer.name}</b> will receive a harder Round {bank.round} word in <b>{bank.carriedCategory}</b>. A miss still leaves their normal rally turn available.</p>
               {mayConfirm ? (
                 <button
                   className="primary-button premium-start-button"
@@ -717,7 +718,7 @@ function TurnView({ room, act }: { room: SpellingRoom; act: (work: () => Promise
           {isHost && !isJudge && !result && !turn.saveActive && <button className="skip host-replace-word" onClick={replaceCurrentTurnWord}>Replace word</button>}
         </aside>
       </section>
-      {result && (!saveAvailable || canCallSave || isHost) && <div className={`result-overlay ${result}`}><div>{saveAvailable ? <ShieldCheck className="save-overlay-icon" /> : <span>{result === 'correct' || result === 'saved' ? '✓' : '×'}</span>}{saveAvailable ? <><p className="save-title">{canCallSave ? 'Save the Bee?' : 'Team decision in progress'}</p><h2>{canCallSave ? `${activeTeam?.name} has ${savesLeft} ${savesLeft === 1 ? 'token' : 'tokens'} left. The answer is still hidden.` : `${activeTeam?.name} can choose whether to use a save. The answer remains hidden.`}</h2><div className="result-actions">{canCallSave && <button className="save-button" onClick={() => act(() => activateSaveTheBee(room.roomCode, me))}><ShieldCheck size={18} /> Start private team huddle</button>}{isHost && <button className="undo-button" onClick={() => act(() => declineSaveTheBee(room.roomCode, me))}>Close save window & reveal</button>}</div></> : <><p>{word.word}</p><h2>{isPremium ? (result === 'correct' ? <>CORRECT · +{basePoints} BASE · +{bonusPoints} PREMIUM<br /><small style={{ fontSize: '18px', fontWeight: 600 }}>{activeTeam?.name} keep control · Bank: {room.premiumBank?.remainingPoints ?? 0} pts remaining</small>{room.premiumBank?.remainingPoints === 0 && <div className="bank-empty-alert"><Sparkles size={16} /> PREMIUM BANK CLAIMED · NORMAL RALLY RESUMES</div>}</> : <>NOT QUITE · 0 POINTS<br /><small style={{ fontSize: '18px', fontWeight: 600 }}>Control passes · Bank unchanged: {room.premiumBank?.remainingPoints ?? 0} pts</small></>) : result === 'saved' ? `Saved! Full value: ${round} on the board.` : result === 'correct' ? `That’s ${round} on the board!` : 'Not quite — next word, same energy.'}</h2>{(isJudge || isHost) ? <div className="result-actions"><button className="undo-button" onClick={() => act(() => undoRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo</button>{isHost && <button className="primary-button" onClick={() => act(() => advanceTurn(room.roomCode, me))}>Next turn →</button>}</div> : <small>Waiting for the host…</small>}</>}</div></div>}
+      {result && (!saveAvailable || canCallSave || isHost) && <div className={`result-overlay ${result}`}><div>{saveAvailable ? <ShieldCheck className="save-overlay-icon" /> : <span>{result === 'correct' || result === 'saved' ? '✓' : '×'}</span>}{saveAvailable ? <><p className="save-title">{canCallSave ? 'Save the Bee?' : 'Team decision in progress'}</p><h2>{canCallSave ? `${activeTeam?.name} has ${savesLeft} ${savesLeft === 1 ? 'token' : 'tokens'} left. The answer is still hidden.` : `${activeTeam?.name} can choose whether to use a save. The answer remains hidden.`}</h2><div className="result-actions">{canCallSave && <button className="save-button" onClick={() => act(() => activateSaveTheBee(room.roomCode, me))}><ShieldCheck size={18} /> Start private team huddle</button>}{isHost && <button className="undo-button" onClick={() => act(() => declineSaveTheBee(room.roomCode, me))}>Close save window & reveal</button>}</div></> : <><p>{word.word}</p><h2>{isPremium ? (result === 'correct' ? <>CORRECT · +{basePoints} BASE · +{bonusPoints} PREMIUM<br /><small style={{ fontSize: '18px', fontWeight: 600 }}>{activeTeam?.name} keep control · Bank: {room.premiumBank?.remainingPoints ?? 0} pts remaining</small>{room.premiumBank?.remainingPoints === 0 && <div className="bank-empty-alert"><Sparkles size={16} /> PREMIUM BANK CLAIMED · NORMAL RALLY RESUMES</div>}</> : <>NOT QUITE · 0 POINTS<br /><small style={{ fontSize: '18px', fontWeight: 600 }}>Control passes · Bank unchanged: {room.premiumBank?.remainingPoints ?? 0} pts<br />Normal rally turn refunded</small></>) : result === 'saved' ? `Saved! Full value: ${round} on the board.` : result === 'correct' ? `That’s ${round} on the board!` : 'Not quite — next word, same energy.'}</h2>{(isJudge || isHost) ? <div className="result-actions"><button className="undo-button" onClick={() => act(() => undoRuling(room.roomCode, me))}><RotateCcw size={17} /> Undo</button>{isHost && <button className="primary-button" onClick={() => act(() => advanceTurn(room.roomCode, me))}>Next turn →</button>}</div> : <small>Waiting for the host…</small>}</>}</div></div>}
       {saveAvailable && !canCallSave && !isHost && <div className="save-decision-status"><ShieldCheck size={18} /><span>{activeTeam?.name} are deciding whether to call Save the Bee.</span></div>}
     </main>
   )
@@ -842,7 +843,7 @@ function PresentationView({ room }: { room: SpellingRoom }) {
             {isPremiumTurn
               ? (success
                 ? `${totalPts} total points on the board · Bank: ${room.premiumBank?.remainingPoints ?? 0} pts left`
-                : `Control passes to other team · Bank: ${room.premiumBank?.remainingPoints ?? 0} pts left`)
+                : `Control passes · Normal rally turn refunded · Bank: ${room.premiumBank?.remainingPoints ?? 0} pts left`)
               : (success ? `${round} ${round === 1 ? 'point' : 'points'} on the board.` : 'The word is now revealed.')}
           </h2>
           {isPremiumTurn && room.premiumBank?.remainingPoints === 0 && (
