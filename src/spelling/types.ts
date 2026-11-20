@@ -178,3 +178,50 @@ export interface SpellingRoom {
   createdAt: number
   updatedAt: number
 }
+
+export interface SpellingMetaStats {
+  visits: number
+  uniqueVisits: number
+  resetAt: number
+  updatedAt: number
+}
+
+export interface SpellingCategoryStat {
+  category: Category
+  turns: number
+  correct: number
+  sharePercent: number
+  accuracyPercent: number
+}
+
+export interface SpellingRoomSummary {
+  roomCode: string
+  createdAt: number
+  updatedAt: number
+  mode: GameMode
+  status: SpellingRoom['status']
+  playerCount: number
+  playerNames: string[]
+  turnCount: number
+  correctCount: number
+  accuracyPercent: number
+  topScore: number
+}
+
+export interface SpellingAdminDashboardStats {
+  visits: number
+  uniqueVisits: number
+  resetAt: number
+  updatedAt: number
+  totalRooms: number
+  activeRooms: number
+  completedRooms: number
+  completionRatePercent: number
+  totalTurns: number
+  correctTurns: number
+  overallAccuracyPercent: number
+  modeCounts: Record<GameMode, number>
+  statusCounts: Record<SpellingRoom['status'], number>
+  categoryStats: SpellingCategoryStat[]
+  recentRooms: SpellingRoomSummary[]
+}

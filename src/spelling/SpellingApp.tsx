@@ -19,6 +19,7 @@ import {
   getSpellingPlayerId,
   getStoredPlaythroughPlayerId,
   isPlaythroughMode,
+  isSpellingAdminMode,
   joinCodeFromPath,
   judgeFaceOff,
   judgeBonusGame,
@@ -44,12 +45,14 @@ import {
   resolveNoBuzz,
   startSpellingGame,
   startBonusGame,
+  trackSpellingVisit,
   undoRuling,
   undoFaceOffRuling,
   unlockFaceOff,
   substituteFaceOffRepresentative,
 } from './firestore'
 import type { PlaythroughPlayerPersona } from './firestore'
+import { SpellingAdmin } from './SpellingAdmin'
 import {
   activeHostId,
   eligibleTemporaryJudges,
@@ -1090,8 +1093,13 @@ function StandardSpellingApp() {
 }
 
 export function SpellingApp() {
+  const isAdmin = isSpellingAdminMode()
   useEffect(() => {
-    document.title = 'Spelling bee game night'
-  }, [])
+    document.title = isAdmin ? 'Spelling Bee Admin · Usage & Rooms' : 'Spelling bee game night'
+    if (!isAdmin && !isPlaythroughMode()) {
+      void trackSpellingVisit()
+    }
+  }, [isAdmin])
+  if (isAdmin) return <SpellingAdmin />
   return isPlaythroughMode() ? <PlaythroughShell /> : <StandardSpellingApp />
 }

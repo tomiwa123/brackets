@@ -248,8 +248,49 @@ try {
   await assertFails(setDoc(doc(firestore, 'spellingRooms/TOOLONG'), { ...spellingRoom, roomCode: 'TOOLONG' }));
   await assertFails(deleteDoc(spellingReference));
 
+  const spellingStatsReference = doc(firestore, 'spellingMeta/stats');
+  await assertSucceeds(setDoc(spellingStatsReference, {
+    visits: 1,
+    uniqueVisits: 1,
+    resetAt: 0,
+    updatedAt: 1000,
+  }));
+  await assertSucceeds(getDoc(spellingStatsReference));
+  await assertSucceeds(setDoc(spellingStatsReference, {
+    visits: 5,
+    uniqueVisits: 3,
+    resetAt: 1000,
+    updatedAt: 2000,
+  }));
+  await assertFails(setDoc(spellingStatsReference, {
+    visits: 2,
+    uniqueVisits: 3,
+    resetAt: 0,
+    updatedAt: 2000,
+  }));
+  await assertFails(setDoc(spellingStatsReference, {
+    visits: -1,
+    uniqueVisits: 0,
+    resetAt: 0,
+    updatedAt: 2000,
+  }));
+  await assertFails(setDoc(spellingStatsReference, {
+    visits: 1,
+    uniqueVisits: 1,
+    resetAt: 0,
+    updatedAt: 2000,
+    extraField: true,
+  }));
+  await assertFails(setDoc(doc(firestore, 'spellingMeta/other'), {
+    visits: 1,
+    uniqueVisits: 1,
+    resetAt: 0,
+    updatedAt: 2000,
+  }));
+  await assertFails(deleteDoc(spellingStatsReference));
+
   await assertFails(setDoc(doc(firestore, 'unrelated/document'), { open: true }));
-  console.log('Firestore rules: 24 assertions passed.');
+  console.log('Firestore rules: 32 assertions passed.');
 } finally {
   await environment.cleanup();
 }

@@ -109,6 +109,28 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function validSpellingStats() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['visits', 'uniqueVisits', 'resetAt', 'updatedAt'])
+        && data.keys().hasAll(['visits', 'uniqueVisits', 'resetAt', 'updatedAt'])
+        && data.visits is int
+        && data.visits >= 0
+        && data.visits <= 100000000
+        && data.uniqueVisits is int
+        && data.uniqueVisits >= 0
+        && data.uniqueVisits <= data.visits
+        && data.resetAt is int
+        && data.resetAt >= 0
+        && data.updatedAt is int
+        && data.updatedAt >= 0;
+    }
+
+    match /spellingMeta/{docId} {
+      allow read: if docId == 'stats';
+      allow create, update: if docId == 'stats' && validSpellingStats();
+      allow delete: if false;
+    }
+
     function isEraId(eraId) {
       return eraId == 'era-1' || eraId == 'era-2' || eraId == 'era-3';
     }

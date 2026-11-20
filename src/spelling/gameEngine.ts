@@ -1,4 +1,21 @@
-import type { BonusGameKind, Category, CurrentTurn, Difficulty, FaceOffKind, GameMode, Player, SpellingRoom, Team, TeamId, WordCard } from './types'
+import { CATEGORIES } from './types'
+import type {
+  BonusGameKind,
+  Category,
+  CurrentTurn,
+  Difficulty,
+  FaceOffKind,
+  GameMode,
+  Player,
+  SpellingAdminDashboardStats,
+  SpellingCategoryStat,
+  SpellingMetaStats,
+  SpellingRoom,
+  SpellingRoomSummary,
+  Team,
+  TeamId,
+  WordCard,
+} from './types'
 
 export const TOTAL_ROUNDS = 3
 export const ROUND_LABELS = [
@@ -308,5 +325,149 @@ export function nextTurn(
     currentTurn: makeTurn(nextPlayerId, room.revision + 1, judgeIdForPlayer({ ...room, playerOrder }, nextPlayerId)),
     status: 'playing',
     playerOrder,
+  }
+}
+
+export const DEFAULT_SPELLING_ADMIN_PASSPHRASE = 'spelling2026'
+
+export function normalizeSpellingAdminPassphrase(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+export function isValidSpellingAdminPassphrase(
+  attempt: string,
+  configuredPassphrases: Array<string | undefined> = [],
+): boolean {
+  const normalizedAttempt = normalizeSpellingAdminPassphrase(attempt)
+  if (!normalizedAttempt) return false
+  const candidates = [...configuredPassphrases, DEFAULT_SPELLING_ADMIN_PASSPHRASE]
+    .map((candidate) => normalizeSpellingAdminPassphrase(candidate ?? ''))
+    .filter((candidate) => candidate.length > 0)
+  return candidates.includes(normalizedAttempt)
+}
+
+export function aggregateSpellingAdminStats(
+  rooms: SpellingRoom[],
+  meta?: Partial<SpellingMetaStats> | null,
+): SpellingAdminDashboardStats {
+  const resetAt = typeof meta?.resetAt === 'number' && meta.resetAt >= 0 ? meta.resetAt : 0
+  const visits = typeof meta?.visits === 'number' && meta.visits >= 0 ? meta.visits : 0
+  const uniqueVisits = typeof meta?.uniqueVisits === 'number' && meta.uniqueVisits >= 0
+    ? Math.min(visits, meta.uniqueVisits)
+    : 0
+  const updatedAt = typeof meta?.updatedAt === 'number' && meta.updatedAt >= 0 ? meta.updatedAt : 0
+
+  const filteredRooms = rooms
+    .filter((room) => (room.createdAt ?? 0) >= resetAt)
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+
+  const modeCounts: Record<GameMode, number> = { classic: 0, team: 0 }
+  const statusCounts: Record<SpellingRoom['status'], number> = {
+    lobby: 0,
+    playing: 0,
+    finished: 0,
+    closed: 0,
+  }
+  const categoryBuckets = new Map<Category, { turns: number; correct: number }>(
+    CATEGORIES.map((category) => [category, { turns: 0, correct: 0 }]),
+  )
+
+  let totalTurns = 0
+  let correctTurns = 0
+
+  const recentRooms: SpellingRoomSummary[] = filteredRooms.map((room) => {
+    const mode = gameMode(room)
+    const status = room.status ?? 'lobby'
+    modeCounts[mode] = (modeCounts[mode] ?? 0) + 1
+    statusCounts[status] = (statusCounts[status] ?? 0) + 1
+
+    let roomTurnCount = 0
+    let roomCorrectCount = 0
+
+    for (const record of room.history ?? []) {
+      roomTurnCount += 1
+      totalTurns += 1
+      if (record.correct) {
+        roomCorrectCount += 1
+        correctTurns += 1
+      }
+      const bucket = categoryBuckets.get(record.category)
+      if (bucket) {
+        bucket.turns += 1
+        if (record.correct) bucket.correct += 1
+      }
+    }
+
+    for (const faceOff of room.faceOffHistory ?? []) {
+      if (faceOff.outcome === 'winner' || faceOff.outcome === 'double-miss') {
+        const isCorrect = faceOff.outcome === 'winner'
+        roomTurnCount += 1
+        totalTurns += 1
+        if (isCorrect) {
+          roomCorrectCount += 1
+          correctTurns += 1
+        }
+        const bucket = categoryBuckets.get(faceOff.category)
+        if (bucket) {
+          bucket.turns += 1
+          if (isCorrect) bucket.correct += 1
+        }
+      }
+    }
+
+    const players = room.players ?? []
+    const teams = room.teams ?? []
+    const topScore = mode === 'team'
+      ? Math.max(0, ...teams.map((team) => team.score ?? 0), ...players.map((player) => player.score ?? 0))
+      : Math.max(0, ...players.map((player) => player.score ?? 0))
+
+    return {
+      roomCode: room.roomCode,
+      createdAt: room.createdAt ?? 0,
+      updatedAt: room.updatedAt ?? room.createdAt ?? 0,
+      mode,
+      status,
+      playerCount: players.length,
+      playerNames: players.map((player) => player.name),
+      turnCount: roomTurnCount,
+      correctCount: roomCorrectCount,
+      accuracyPercent: roomTurnCount > 0 ? Math.round((roomCorrectCount / roomTurnCount) * 100) : 0,
+      topScore,
+    }
+  })
+
+  const totalRooms = filteredRooms.length
+  const activeRooms = statusCounts.lobby + statusCounts.playing
+  const completedRooms = statusCounts.finished
+  const completionRatePercent = totalRooms > 0 ? Math.round((completedRooms / totalRooms) * 100) : 0
+  const overallAccuracyPercent = totalTurns > 0 ? Math.round((correctTurns / totalTurns) * 100) : 0
+
+  const categoryStats: SpellingCategoryStat[] = CATEGORIES.map((category) => {
+    const bucket = categoryBuckets.get(category) ?? { turns: 0, correct: 0 }
+    return {
+      category,
+      turns: bucket.turns,
+      correct: bucket.correct,
+      sharePercent: totalTurns > 0 ? Math.round((bucket.turns / totalTurns) * 100) : 0,
+      accuracyPercent: bucket.turns > 0 ? Math.round((bucket.correct / bucket.turns) * 100) : 0,
+    }
+  })
+
+  return {
+    visits,
+    uniqueVisits,
+    resetAt,
+    updatedAt,
+    totalRooms,
+    activeRooms,
+    completedRooms,
+    completionRatePercent,
+    totalTurns,
+    correctTurns,
+    overallAccuracyPercent,
+    modeCounts,
+    statusCounts,
+    categoryStats,
+    recentRooms,
   }
 }

@@ -1,7 +1,8 @@
-import { doc, getDoc, onSnapshot, runTransaction, setDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, onSnapshot, runTransaction, setDoc } from 'firebase/firestore'
 import { db, hasFirebaseConfig } from '../services/firebase'
 import {
   activeHostId,
+  aggregateSpellingAdminStats,
   alternatingTeamOrder,
   assignBalancedTeams,
   canRenameTeam,
@@ -31,7 +32,20 @@ import {
   validatedTeamName,
 } from './gameEngine'
 import { CATEGORIES } from './types'
-import type { BonusGame, BonusGameKind, Category, CurrentTurn, FaceOff, GameMode, Hint, ReplayChoice, SpellingRoom, TeamId } from './types'
+import type {
+  BonusGame,
+  BonusGameKind,
+  Category,
+  CurrentTurn,
+  FaceOff,
+  GameMode,
+  Hint,
+  ReplayChoice,
+  SpellingAdminDashboardStats,
+  SpellingMetaStats,
+  SpellingRoom,
+  TeamId,
+} from './types'
 import { WORD_BANK } from './words'
 import { MAX_PLAYERS } from './config'
 import {
@@ -45,8 +59,12 @@ import {
 } from './faceOffEngine'
 
 const COLLECTION = 'spellingRooms'
+const META_COLLECTION = 'spellingMeta'
+const STATS_DOC_ID = 'stats'
 const PLAYER_KEY = 'spelling-night-player-id'
 const SESSION_KEY = 'spelling-night-session'
+const VISIT_SESSION_KEY = 'spelling-night-visit-tracked'
+const UNIQUE_VISITOR_KEY = 'spelling-night-visitor-tracked'
 const PLAYTHROUGH_PERSONA_KEY = 'spelling-night-playthrough-persona'
 const PLAYTHROUGH_PERSONAS = ['host', 'player-2', 'player-3', 'player-4', 'player-5', 'player-6'] as const
 
@@ -85,6 +103,10 @@ export function getRememberedSession(): { roomCode: string; name: string } | nul
 
 export function isPlaythroughMode(): boolean {
   return window.location.pathname.startsWith('/spelling/playthrough')
+}
+
+export function isSpellingAdminMode(): boolean {
+  return /^\/spelling\/admin\/?$/i.test(window.location.pathname)
 }
 
 function selectedPlaythroughPersona(): PlaythroughPlayerPersona {
@@ -1178,4 +1200,61 @@ export async function judgeBonusGame(code: string, actorId: string, correct: boo
     const pi = bonus.playerIndexes[bonus.activeTeamId] + 1
     return { ...room, bonusGame: { ...activeBonus, strikes, playerIndexes: { ...bonus.playerIndexes, [bonus.activeTeamId]: pi }, activePlayerId: nextTeamPlayer(playersInOrder(room.players, room.playerOrder), bonus.activeTeamId, pi)!.id } }
   })
+}
+
+export async function trackSpellingVisit(): Promise<void> {
+  if (!hasFirebaseConfig) return
+  try {
+    if (sessionStorage.getItem(VISIT_SESSION_KEY) === '1') return
+    sessionStorage.setItem(VISIT_SESSION_KEY, '1')
+    const isNewUniqueVisitor = localStorage.getItem(UNIQUE_VISITOR_KEY) !== '1'
+    if (isNewUniqueVisitor) {
+      localStorage.setItem(UNIQUE_VISITOR_KEY, '1')
+    }
+    const statsRef = doc(db, META_COLLECTION, STATS_DOC_ID)
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(statsRef)
+      const now = Date.now()
+      const current = snapshot.exists() ? (snapshot.data() as Partial<SpellingMetaStats>) : null
+      const visits = (typeof current?.visits === 'number' && current.visits >= 0 ? current.visits : 0) + 1
+      const prevUnique = typeof current?.uniqueVisits === 'number' && current.uniqueVisits >= 0 ? current.uniqueVisits : 0
+      const uniqueIncrement = isNewUniqueVisitor || prevUnique === 0 ? 1 : 0
+      const uniqueVisits = Math.min(visits, prevUnique + uniqueIncrement)
+      const resetAt = typeof current?.resetAt === 'number' && current.resetAt >= 0 ? current.resetAt : 0
+      transaction.set(statsRef, {
+        visits,
+        uniqueVisits,
+        resetAt,
+        updatedAt: now,
+      })
+    })
+  } catch {
+    // Analytics tracking must never interrupt gameplay.
+  }
+}
+
+export async function fetchSpellingAdminStats(): Promise<SpellingAdminDashboardStats> {
+  assertFirebase()
+  const statsRef = doc(db, META_COLLECTION, STATS_DOC_ID)
+  const roomsCollection = collection(db, COLLECTION)
+  const [statsSnapshot, roomsSnapshot] = await Promise.all([
+    getDoc(statsRef),
+    getDocs(roomsCollection),
+  ])
+  const meta = statsSnapshot.exists() ? (statsSnapshot.data() as Partial<SpellingMetaStats>) : null
+  const rooms = roomsSnapshot.docs.map((docSnapshot) => normalizeRoom(docSnapshot.data() as SpellingRoom))
+  return aggregateSpellingAdminStats(rooms, meta)
+}
+
+export async function resetSpellingAdminStats(): Promise<SpellingAdminDashboardStats> {
+  assertFirebase()
+  const now = Date.now()
+  const nextMeta: SpellingMetaStats = {
+    visits: 0,
+    uniqueVisits: 0,
+    resetAt: now,
+    updatedAt: now,
+  }
+  await setDoc(doc(db, META_COLLECTION, STATS_DOC_ID), nextMeta)
+  return aggregateSpellingAdminStats([], nextMeta)
 }

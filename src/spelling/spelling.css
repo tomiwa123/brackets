@@ -116,3 +116,63 @@ button { font:inherit; }
 .presentation-bank-card b{font:900 clamp(36px,6vw,64px) 'Fraunces';color:var(--ink)}
 .presentation-bank-card b small{font-size:18px;font-weight:600;color:#6d655b}
 .presentation-bank-card p{margin:0;font-size:22px;color:#4c443b}
+
+/* Hidden Admin Dashboard (/spelling/admin) */
+.spell-admin-login-wrap{display:grid;place-items:center;padding:clamp(40px,7vw,90px) 20px}
+.spell-admin-login-card{margin-top:0;text-align:left}
+.spell-admin-lock-icon{width:44px;height:44px;border-radius:50%;background:var(--honey);border:1px solid var(--ink);display:grid;place-items:center;margin-bottom:14px}
+.spell-admin-login-copy{color:#655e54;font-size:14px;margin:0 0 18px;line-height:1.45}
+.spell-admin-header{flex-wrap:wrap;height:auto;min-height:74px;padding-top:12px;padding-bottom:12px}
+.spell-admin-header-actions{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.spell-admin-since{font-size:12px;color:#6d655b;margin-right:6px}
+.spell-admin-small-btn{padding:9px 13px;font-size:13px;display:inline-flex;align-items:center;gap:6px;text-decoration:none;background:#fffaf1}
+.spell-admin-container{max-width:1220px;margin:0 auto;padding:clamp(24px,4vw,48px) clamp(18px,4vw,56px) 72px;display:grid;gap:26px}
+.spell-admin-error{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border:2px solid var(--danger);background:#fff5f1;color:var(--danger);font-weight:700}
+.spell-admin-error button{border:0;background:transparent;font-size:18px;cursor:pointer;color:var(--danger)}
+.spell-admin-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.spell-admin-kpi-card{background:#fffaf1;border:1px solid var(--ink);box-shadow:5px 5px 0 var(--honey);padding:20px;display:grid;gap:10px}
+.spell-admin-kpi-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.spell-admin-kpi-value{font:900 clamp(34px,4vw,52px)/1 'Fraunces';color:var(--ink)}
+.spell-admin-kpi-meta{margin:0;font-size:13px;color:#665e53}
+.spell-admin-badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:20px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;border:1px solid var(--ink);background:#fff}
+.spell-admin-badge.honey{background:var(--honey);color:var(--ink)}
+.spell-admin-badge.blue{background:#eef5fb;color:#264d6e;border-color:var(--blue)}
+.spell-admin-badge.sage{background:#e3eee2;color:#355337;border-color:var(--sage)}
+.spell-admin-badge.muted{background:#eae1d4;color:#5d554b;border-color:var(--line)}
+.spell-admin-charts-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.spell-admin-panel{background:#fffaf1;border:1px solid var(--ink);padding:24px;display:grid;gap:18px;align-content:start}
+.spell-admin-panel-header h2{margin:4px 0 0;font-size:26px}
+.spell-admin-bar-group{display:grid;gap:12px}
+.spell-admin-bar-group h3{margin:4px 0 2px;font-size:16px;color:#5d554b}
+.spell-admin-bar-row{display:grid;gap:5px}
+.spell-admin-bar-label{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px}
+.spell-admin-bar-label span{color:#665e53;font-weight:600}
+.spell-admin-bar-track{height:11px;background:#eae1d4;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.spell-admin-bar-fill{height:100%;border-radius:6px;transition:width .25s ease}
+.spell-admin-bar-fill.honey{background:var(--honey)}
+.spell-admin-bar-fill.blue{background:var(--blue)}
+.spell-admin-bar-fill.sage{background:var(--sage)}
+.spell-admin-bar-fill.muted{background:#8d8478}
+.spell-admin-table-wrap{overflow-x:auto;border:1px solid var(--line);background:white}
+.spell-admin-table{width:100%;border-collapse:collapse;font-size:14px;text-align:left}
+.spell-admin-table th,.spell-admin-table td{padding:13px 15px;border-bottom:1px solid var(--line);vertical-align:top}
+.spell-admin-table th{background:#f3ece0;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#5a5248}
+.spell-admin-room-code{font:900 18px 'Fraunces';letter-spacing:.1em}
+.spell-admin-room-details{display:grid;gap:2px}
+.spell-admin-room-details span{font-size:12px;color:#5e564c}
+.spell-admin-room-details small{font-size:11px;color:#7d7469}
+.spell-admin-action-link{display:inline-flex;align-items:center;gap:5px;font-weight:700;color:var(--blue);text-decoration:none}
+.spell-admin-action-link:hover{text-decoration:underline}
+.spell-admin-empty-row{text-align:center;padding:28px!important;color:#6d655b}
+.spell-admin-footer{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding-top:8px;border-top:1px solid var(--line)}
+.spell-admin-footer-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 16px;background:white}
+.spell-admin-footer-btn.danger{border-color:var(--danger);color:var(--danger)}
+.spell-admin-modal-overlay{color:var(--ink)}
+.spell-admin-modal{text-align:left;max-width:440px}
+.spell-admin-modal h2{margin-top:0}
+.spell-admin-modal p{font-size:14px;color:#5b5349;line-height:1.5}
+.spell-admin-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.spell-admin-modal-actions .primary-button{width:auto;margin-top:0;padding:12px 18px}
+.spell-admin-modal-actions .danger-button{background:var(--danger);box-shadow:4px 4px 0 var(--ink)}
+@media(max-width:920px){.spell-admin-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.spell-admin-charts-grid{grid-template-columns:1fr}}
+@media(max-width:520px){.spell-admin-kpi-grid{grid-template-columns:1fr}}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   activeHostId,
+  aggregateSpellingAdminStats,
   bonusGameValue,
   alternatingTeamOrder,
   assignBalancedTeams,
@@ -13,10 +14,12 @@ import {
   faceOffPoints,
   faceOffRepresentativeIds,
   hasHostControl,
+  isValidSpellingAdminPassphrase,
   judgeIdForPlayer,
   nextRallyPlayerId,
   nextTeamPlayer,
   nextTurn,
+  normalizeSpellingAdminPassphrase,
   playersInOrder,
   pointsForRound,
   premiumChunkPoints,
@@ -327,5 +330,116 @@ describe('spelling game engine', () => {
     expect(nextRallyPlayerId({ playerOrder, roundUsedPlayerIds: ['h1', 'b1'] })).toBe('h2')
     expect(nextRallyPlayerId({ playerOrder, roundUsedPlayerIds: ['h1', 'b1', 'h2'] })).toBe('b2')
     expect(nextRallyPlayerId({ playerOrder, roundUsedPlayerIds: ['h1', 'b1', 'h2', 'b2'] })).toBeNull()
+  })
+
+  it('normalizes admin passphrases and accepts configured or default passwords', () => {
+    expect(normalizeSpellingAdminPassphrase('Spelling 2026!')).toBe('spelling2026')
+    expect(isValidSpellingAdminPassphrase('Spelling-2026')).toBe(true)
+    expect(isValidSpellingAdminPassphrase('Custom Pass 99', ['custom-pass-99'])).toBe(true)
+    expect(isValidSpellingAdminPassphrase('wrongpass', ['custom-pass-99'])).toBe(false)
+    expect(isValidSpellingAdminPassphrase('   ')).toBe(false)
+  })
+
+  it('aggregates admin dashboard stats across rooms and filters rooms prior to resetAt', () => {
+    const baseRoom: SpellingRoom = {
+      roomCode: 'OLD1',
+      title: 'Spelling bee game night',
+      hostId: 'h1',
+      mode: 'classic',
+      teams: createDefaultTeams(),
+      status: 'finished',
+      players: [
+        { id: 'h1', name: 'Alice', score: 3, turns: 2 },
+        { id: 'p2', name: 'Bob', score: 1, turns: 1 },
+      ],
+      playerOrder: ['h1', 'p2'],
+      turnIndex: 3,
+      currentTurn: null,
+      faceOff: null,
+      faceOffHistory: [],
+      faceOffRotationOffset: 0,
+      premiumBank: null,
+      roundUsedPlayerIds: [],
+      openingCategory: null,
+      bonusGame: null,
+      history: [
+        { turnId: 't1', playerId: 'h1', wordId: 'w1', category: 'Bay & Beyond', round: 1, correct: true, points: 1 },
+      ],
+      usedWordIds: ['w1'],
+      revision: 3,
+      createdAt: 1000,
+      updatedAt: 1500,
+    }
+
+    const activeClassicRoom: SpellingRoom = {
+      ...baseRoom,
+      roomCode: 'NEW1',
+      status: 'playing',
+      createdAt: 2500,
+      updatedAt: 2600,
+      history: [
+        { turnId: 't2', playerId: 'h1', wordId: 'w2', category: 'Internet Brain', round: 1, correct: true, points: 1 },
+        { turnId: 't3', playerId: 'p2', wordId: 'w3', category: 'Internet Brain', round: 1, correct: false, points: 0 },
+      ],
+    }
+
+    const finishedTeamRoom: SpellingRoom = {
+      ...baseRoom,
+      roomCode: 'NEW2',
+      mode: 'team',
+      status: 'finished',
+      createdAt: 3000,
+      updatedAt: 3500,
+      teams: [
+        { id: 'honey', name: 'Honeybees', color: '#d89b16', score: 7, saveTokensUsed: [0, 0, 0] },
+        { id: 'blue', name: 'Bluebells', color: '#3f6fa8', score: 4, saveTokensUsed: [0, 0, 0] },
+      ],
+      history: [
+        { turnId: 't4', playerId: 'h1', wordId: 'w4', category: 'Science & Nature', round: 2, correct: true, points: 2, teamId: 'honey' },
+      ],
+      faceOffHistory: [
+        {
+          id: 'fo1',
+          kind: 'round',
+          round: 1,
+          representativeIds: ['h1', 'p2'],
+          category: 'Passport Stamps',
+          wordId: 'w5',
+          winnerPlayerId: 'h1',
+          winnerTeamId: 'honey',
+          points: 2,
+          outcome: 'winner',
+        },
+      ],
+    }
+
+    const stats = aggregateSpellingAdminStats(
+      [baseRoom, activeClassicRoom, finishedTeamRoom],
+      { visits: 12, uniqueVisits: 8, resetAt: 2000, updatedAt: 3600 },
+    )
+
+    expect(stats.visits).toBe(12)
+    expect(stats.uniqueVisits).toBe(8)
+    expect(stats.resetAt).toBe(2000)
+    expect(stats.totalRooms).toBe(2)
+    expect(stats.activeRooms).toBe(1)
+    expect(stats.completedRooms).toBe(1)
+    expect(stats.completionRatePercent).toBe(50)
+    expect(stats.totalTurns).toBe(4)
+    expect(stats.correctTurns).toBe(3)
+    expect(stats.overallAccuracyPercent).toBe(75)
+    expect(stats.modeCounts).toEqual({ classic: 1, team: 1 })
+    expect(stats.statusCounts).toEqual({ lobby: 0, playing: 1, finished: 1, closed: 0 })
+    expect(stats.recentRooms.map((room) => room.roomCode)).toEqual(['NEW2', 'NEW1'])
+    expect(stats.recentRooms[0].topScore).toBe(7)
+
+    const internetStat = stats.categoryStats.find((item) => item.category === 'Internet Brain')
+    expect(internetStat).toEqual({
+      category: 'Internet Brain',
+      turns: 2,
+      correct: 1,
+      sharePercent: 50,
+      accuracyPercent: 50,
+    })
   })
 })
